@@ -1,0 +1,47 @@
+# ===== SEGREDOS — JAMAIS COMMITAR =====
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ===== Dados gerados =====
+data/raw/*
+data/processed/*
+data/output/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/output/.gitkeep
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ===== Logs =====
+logs/
+*.log
+
+# ===== Sistema / IDE =====
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+Thumbs.db
+
+# ===== Node (caso adicione no futuro) =====
+node_modules/
+.npm

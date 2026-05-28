@@ -1,0 +1,132 @@
+# ===========================================================
+# CONFIG — ICPs, scoring, mensagens-base por vertical
+# ===========================================================
+
+verticais:
+
+  betting:
+    nome: "Apostas Esportivas (Bets)"
+    fontes:
+      - tipo: spa_mf
+        url: "https://www.gov.br/fazenda/pt-br/assuntos/secretaria-de-premios-e-apostas/empresas-autorizadas"
+        descricao: "Lista oficial SPA/MF de empresas autorizadas"
+    icp:
+      porte_minimo: "media"
+      decisores_alvo:
+        - "Head of Product"
+        - "CTO"
+        - "Head of CRM"
+        - "Diretor de Operações"
+        - "Head of Engineering"
+      gatilhos:
+        - "licenciamento recente"
+        - "lançamento de novo produto"
+        - "promoção sazonal"
+        - "queda em entrega de OTP"
+      dor_principal: "OTP e notificações em pico de jogo decisivo, com SLA enterprise"
+    mensagem_central: "Pipe ANATEL com 20 anos, 99% de entrega, suporte humano em pico. 20% mais barato que sua infra atual."
+
+  pagamentos:
+    nome: "Instituições de Pagamento"
+    fontes:
+      - tipo: bacen
+        url: "https://www.bcb.gov.br/estabilidadefinanceira/relacaoinstituicoes"
+        descricao: "Lista oficial Bacen de IPs autorizadas"
+    icp:
+      porte_minimo: "pequena_grande"
+      decisores_alvo:
+        - "CTO"
+        - "Diretor de Engenharia"
+        - "Compliance Officer"
+        - "Head of Anti-Fraude"
+        - "VP de Tecnologia"
+      gatilhos:
+        - "crescimento de TPV"
+        - "novo produto"
+        - "incidente de fraude"
+        - "obrigação regulatória nova"
+      dor_principal: "OTP transacional, alertas anti-fraude, compliance Bacen/LGPD"
+    mensagem_central: "OTP e alertas anti-fraude com SLA enterprise. Compliance Bacen/LGPD documentado. APIs robustas para integração rápida."
+
+  cobranca:
+    nome: "Recuperação de Crédito e Cobrança"
+    fontes:
+      - tipo: ohub
+        url: "https://www.ohub.com.br/empresas/recuperacao-de-credito"
+        descricao: "Diretório oHub de recuperação de crédito"
+      - tipo: abemd
+        url: "https://www.abemd.org.br/associados"
+        descricao: "Associados ABEMD"
+    icp:
+      porte_minimo: "pequena_50_func"
+      decisores_alvo:
+        - "Diretor de Operações"
+        - "COO"
+        - "Head de Régua"
+        - "Sócio"
+        - "Diretor de Cobrança"
+      gatilhos:
+        - "alta inadimplência"
+        - "expansão da régua digital"
+        - "troca de fornecedor de comunicação"
+        - "novo cliente grande"
+      dor_principal: "Régua de cobrança multi-canal com alta entrega e custo baixo"
+    mensagem_central: "Régua de cobrança com 98% de entrega no SMS. Custo 20% menor. Integração com seus sistemas em dias, não meses."
+
+  saas_b2b:
+    nome: "SaaS B2B / B2B2C"
+    fontes:
+      - tipo: abstartups
+        url: "https://abstartups.com.br/brasil/"
+        descricao: "Mapeamento ABStartups"
+      - tipo: crunchbase
+        url: "https://api.crunchbase.com/v4/"
+        descricao: "Crunchbase API (com chave)"
+    icp:
+      porte_minimo: "Serie_A_ou_R10M_ARR"
+      decisores_alvo:
+        - "CTO"
+        - "Head of Product"
+        - "VP Engineering"
+        - "Head of Platform"
+      gatilhos:
+        - "Série A ou B recente"
+        - "expansão para novo país"
+        - "lançamento de produto multi-tenant"
+        - "churn alto por comunicação"
+      dor_principal: "API CPaaS multi-tenant para embutir no produto sem virar telecom"
+    mensagem_central: "API CPaaS multi-tenant para você embutir SMS/voz no seu produto sem virar telecom. Documentação clara, suporte humano, preço competitivo."
+
+# ===========================================================
+# CRITÉRIOS DE SCORE (0-100)
+# ===========================================================
+
+scoring:
+  pesos:
+    fit_vertical: 25           # empresa pertence à vertical?
+    porte: 15                  # tem o porte mínimo?
+    decisor_identificado: 20   # conseguimos identificar o decisor certo?
+    gatilho_ativo: 25          # tem gatilho recente?
+    contato_disponivel: 15     # temos e-mail / linkedin?
+
+# ===========================================================
+# LLM (Gemini)
+# ===========================================================
+
+llm:
+  provider: "gemini"
+  modelo: "gemini-2.5-flash"
+  max_tokens: 4096
+  temperatura_parse: 0.0       # determinístico para parsing
+  temperatura_personalizacao: 0.5  # mais criativo para gatilhos
+
+# ===========================================================
+# SCRAPING
+# ===========================================================
+
+scraping:
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+  delay_entre_requests_ms: 2000
+  max_retries: 3
+  timeout_segundos: 30
+  headless: true

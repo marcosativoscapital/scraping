@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="pt-BR" class="brand-cpaas">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Solve Scraper · Solvefy CPaaS</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <!-- SVG sprite -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-radar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 12l5-5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></symbol>
+      <symbol id="i-table" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M9 5v14"/></symbol>
+      <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 16 8-16 8 3-8-3-8z"/></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M18 16v-5a6 6 0 1 0-12 0v5l-2 3h16l-2-3z"/><path d="M10 19a2 2 0 0 0 4 0"/></symbol>
+      <symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></symbol>
+      <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="m6 4 14 8L6 20V4z"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 5-5m-5 5-5-5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+      <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7-7 7 7"/></symbol>
+      <symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></symbol>
+      <symbol id="i-logo" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="12"/><path d="m10 16 4 4 8-8"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__brand">
+        <span class="brand-mark">
+          <svg width="22" height="22"><use href="#i-logo"/></svg>
+        </span>
+        <span class="brand-name">Solve Scraper</span>
+      </div>
+      <nav class="sidebar__nav">
+        <button class="nav-item is-active" data-tab="overview">
+          <svg width="20" height="20"><use href="#i-zap"/></svg>
+          <span>Overview</span>
+        </button>
+        <button class="nav-item" data-tab="leads">
+          <svg width="20" height="20"><use href="#i-table"/></svg>
+          <span>Leads</span>
+        </button>
+        <button class="nav-item" data-tab="monitor">
+          <svg width="20" height="20"><use href="#i-radar"/></svg>
+          <span>Monitor</span>
+        </button>
+        <button class="nav-item" data-tab="outbound">
+          <svg width="20" height="20"><use href="#i-send"/></svg>
+          <span>Outbound</span>
+        </button>
+        <button class="nav-item" data-tab="events">
+          <svg width="20" height="20"><use href="#i-bell"/></svg>
+          <span>Eventos</span>
+        </button>
+        <button class="nav-item" data-tab="settings">
+          <svg width="20" height="20"><use href="#i-cog"/></svg>
+          <span>Configurações</span>
+        </button>
+      </nav>
+      <div class="sidebar__footer">
+        <div class="status-pill" id="server-status">
+          <span class="dot"></span><span class="label">Verificando…</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar__title">
+          <h1 id="page-title">Overview</h1>
+          <p class="topbar__subtitle" id="page-subtitle">Operação KR2 · CPaaS · 4 verticais</p>
+        </div>
+        <div class="topbar__actions">
+          <button class="btn btn--secondary" id="btn-refresh">
+            <svg width="18" height="18"><use href="#i-zap"/></svg>
+            Atualizar
+          </button>
+          <button class="btn btn--primary" id="btn-scrape">
+            <svg width="18" height="18"><use href="#i-play"/></svg>
+            Disparar coleta
+          </button>
+        </div>
+      </header>
+
+      <div class="content">
+
+        <!-- ============== OVERVIEW ============== -->
+        <section class="tab-panel is-active" data-panel="overview">
+          <div class="metrics-grid">
+            <div class="metric">
+              <span class="metric__label">Leads coletados</span>
+              <span class="metric__value" id="m-total">—</span>
+              <span class="metric__delta metric__delta--up" id="m-delta">+0 nas últimas 24h</span>
+            </div>
+            <div class="metric">
+              <span class="metric__label">Score ≥ 70 (outbound)</span>
+              <span class="metric__value" id="m-hot">—</span>
+              <span class="metric__delta" id="m-hot-pct">—% do total</span>
+            </div>
+            <div class="metric">
+              <span class="metric__label">Verticais ativas</span>
+              <span class="metric__value" id="m-verticais">—</span>
+              <span class="metric__delta">betting · pagamentos · cobrança · saas b2b</span>
+            </div>
+            <div class="metric">
+              <span class="metric__label">Última coleta</span>
+              <span class="metric__value metric__value--sm" id="m-last">—</span>
+              <span class="metric__delta" id="m-last-vertical">—</span>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="card">
+              <div class="card__head">
+                <h2>Distribuição por score</h2>
+                <p class="card__sub">Total qualificado (ICP)</p>
+              </div>
+              <div class="score-buckets" id="score-buckets">
+                <div class="bucket" data-tier="hot">
+                  <span class="bucket__label">Score 80+</span>
+                  <span class="bucket__bar"><span class="bucket__fill"></span></span>
+                  <span class="bucket__count">0</span>
+                </div>
+                <div class="bucket" data-tier="warm">
+                  <span class="bucket__label">Score 60–79</span>
+                  <span class="bucket__bar"><span class="bucket__fill"></span></span>
+                  <span class="bucket__count">0</span>
+                </div>
+                <div class="bucket" data-tier="nurture">
+                  <span class="bucket__label">Score 40–59</span>
+                  <span class="bucket__bar"><span class="bucket__fill"></span></span>
+                  <span class="bucket__count">0</span>
+                </div>
+                <div class="bucket" data-tier="cold">
+                  <span class="bucket__label">Score &lt; 40</span>
+                  <span class="bucket__bar"><span class="bucket__fill"></span></span>
+                  <span class="bucket__count">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <h2>Por vertical</h2>
+                <p class="card__sub">Volume coletado</p>
+              </div>
+              <div class="vertical-list" id="vertical-list"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card__head">
+              <h2>Últimos leads</h2>
+              <p class="card__sub">Mais recentes processados</p>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" id="recent-table">
+                <thead>
+                  <tr>
+                    <th>Empresa</th>
+                    <th>Vertical</th>
+                    <th>Decisor</th>
+                    <th>Score</th>
+                    <th>Coletado</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============== LEADS ============== -->
+        <section class="tab-panel" data-panel="leads">
+          <div class="filters">
+            <div class="filter-group">
+              <label class="filter-label">Vertical</label>
+              <select id="f-vertical" class="select">
+                <option value="all">Todas</option>
+                <option value="betting">Betting</option>
+                <option value="pagamentos">Pagamentos</option>
+                <option value="cobranca">Cobrança</option>
+                <option value="saas_b2b">SaaS B2B</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Score mínimo</label>
+              <input type="number" id="f-score" class="input" min="0" max="100" value="0" />
+            </div>
+            <div class="filter-group filter-group--grow">
+              <label class="filter-label">Buscar</label>
+              <div class="input-icon">
+                <svg width="16" height="16"><use href="#i-search"/></svg>
+                <input type="search" id="f-search" class="input" placeholder="empresa, decisor, CNPJ…" />
+              </div>
+            </div>
+            <div class="filter-group filter-group--actions">
+              <button class="btn btn--secondary" id="btn-export">
+                <svg width="16" height="16"><use href="#i-download"/></svg>
+                Exportar CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="card no-pad">
+            <div class="table-wrap">
+              <table class="data-table" id="leads-table">
+                <thead>
+                  <tr>
+                    <th>Empresa</th>
+                    <th>CNPJ</th>
+                    <th>Vertical</th>
+                    <th>Decisor</th>
+                    <th>E-mail</th>
+                    <th>Score</th>
+                    <th>Recomendação</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="table-foot">
+              <span class="muted" id="leads-count">—</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============== MONITOR ============== -->
+        <section class="tab-panel" data-panel="monitor">
+          <div class="card">
+            <div class="card__head">
+              <h2>Detector de mudanças</h2>
+              <p class="card__sub">Roda a coleta atual e compara com o último snapshot da vertical.</p>
+            </div>
+            <div class="monitor-actions">
+              <button class="chip-btn" data-monitor="betting">Verificar bets (SPA/MF)</button>
+              <button class="chip-btn" data-monitor="pagamentos">Verificar IPs (Bacen)</button>
+              <button class="chip-btn" data-monitor="cobranca">Verificar cobrança</button>
+              <button class="chip-btn" data-monitor="saas_b2b">Verificar SaaS</button>
+            </div>
+            <div id="monitor-result" class="monitor-result"></div>
+          </div>
+        </section>
+
+        <!-- ============== OUTBOUND ============== -->
+        <section class="tab-panel" data-panel="outbound">
+          <div class="card">
+            <div class="card__head">
+              <h2>Outbound multicanal</h2>
+              <p class="card__sub">Gera SMS + e-mail + LinkedIn personalizados para um lead.</p>
+            </div>
+            <div class="outbound-picker" id="outbound-picker">
+              <label class="filter-label">Selecione um lead (score ≥ 60)</label>
+              <select id="outbound-lead-select" class="select"></select>
+              <button class="btn btn--primary" id="btn-gen-outbound">
+                <svg width="18" height="18"><use href="#i-zap"/></svg>
+                Gerar mensagens
+              </button>
+            </div>
+            <div id="outbound-messages" class="outbound-messages"></div>
+          </div>
+        </section>
+
+        <!-- ============== EVENTS ============== -->
+        <section class="tab-panel" data-panel="events">
+          <div class="card">
+            <div class="card__head">
+              <h2>Eventos recentes</h2>
+              <p class="card__sub">Tudo que aconteceu no motor (coletas, re-scores, alertas).</p>
+            </div>
+            <ul class="event-list" id="events-list"></ul>
+          </div>
+        </section>
+
+        <!-- ============== SETTINGS ============== -->
+        <section class="tab-panel" data-panel="settings">
+          <div class="card">
+            <div class="card__head">
+              <h2>Servidor & integrações</h2>
+            </div>
+            <div class="settings-grid">
+              <div class="setting-row">
+                <label class="filter-label">URL da API</label>
+                <input type="text" id="set-api-url" class="input" />
+              </div>
+              <div class="setting-row">
+                <label class="filter-label">Token da API</label>
+                <input type="password" id="set-api-token" class="input" />
+              </div>
+              <div class="setting-row">
+                <label class="filter-label">Slack webhook</label>
+                <input type="text" id="set-slack" class="input" placeholder="https://hooks.slack.com/services/…" disabled />
+                <p class="hint">Configure no <code>.env</code> do servidor (SLACK_WEBHOOK_URL).</p>
+              </div>
+              <div class="setting-row">
+                <label class="filter-label">Intercom token</label>
+                <input type="text" id="set-intercom" class="input" disabled placeholder="Configure no .env (INTERCOM_ACCESS_TOKEN)" />
+              </div>
+              <div class="setting-row">
+                <button class="btn btn--primary" id="btn-save-settings">Salvar</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card__head">
+              <h2>Scheduler</h2>
+              <p class="card__sub">Roda monitor a cada 6h e re-score diário.</p>
+            </div>
+            <div class="settings-grid">
+              <div class="setting-row" id="scheduler-status">Status: —</div>
+              <div class="setting-row">
+                <div class="btn-row">
+                  <button class="btn btn--primary" id="btn-scheduler-start">Iniciar</button>
+                  <button class="btn btn--secondary" id="btn-scheduler-stop">Parar</button>
+                  <button class="btn btn--secondary" id="btn-rescore-now">Rodar re-score agora</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal genérico -->
+  <div class="modal" id="modal" hidden>
+    <div class="modal__backdrop"></div>
+    <div class="modal__panel">
+      <header class="modal__head">
+        <h3 id="modal-title">—</h3>
+        <button class="icon-btn" id="modal-close"><svg width="16" height="16"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal__body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-wrap" id="toast-wrap"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

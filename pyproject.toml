@@ -1,0 +1,23 @@
+[project]
+name = "solve-scraper"
+version = "0.1.0"
+description = "Motor de prospecção B2B da Solvefy — KR2 CPaaS"
+authors = [{ name = "Solvefy Growth", email = "growth@solvefy.com" }]
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+readme = "README.md"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "W", "UP"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

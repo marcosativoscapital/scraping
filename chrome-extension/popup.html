@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Solve Scraper</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>Solve Scraper</h1>
+    <span id="connection-status" class="badge">Verificando...</span>
+  </header>
+
+  <main>
+    <!-- ABA: Dashboard -->
+    <section id="tab-dashboard" class="tab-content active">
+      <h2>Status do servidor</h2>
+      <div id="server-info" class="info-box">
+        <div><strong>API:</strong> <span id="api-url">—</span></div>
+        <div><strong>Jobs ativos:</strong> <span id="jobs-count">0</span></div>
+      </div>
+
+      <h2>Disparar coleta</h2>
+      <div class="form-row">
+        <label for="vertical-select">Vertical</label>
+        <select id="vertical-select">
+          <option value="all">Todas (4 verticais)</option>
+          <option value="betting">Betting</option>
+          <option value="pagamentos">Pagamentos</option>
+          <option value="cobranca">Cobrança</option>
+          <option value="saas_b2b">SaaS B2B</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="limit-input">Limite (opcional)</label>
+        <input type="number" id="limit-input" placeholder="ex: 50" min="1" />
+      </div>
+      <div class="form-row checkbox">
+        <input type="checkbox" id="enrich-email" />
+        <label for="enrich-email">Enriquecer e-mails (Hunter)</label>
+      </div>
+      <button id="trigger-scrape" class="btn-primary">▶ Disparar</button>
+
+      <h2>Jobs recentes</h2>
+      <div id="jobs-list"></div>
+
+      <h2>Arquivos exportados</h2>
+      <div id="outputs-list"></div>
+    </section>
+
+    <!-- ABA: LinkedIn -->
+    <section id="tab-linkedin" class="tab-content">
+      <h2>Captura LinkedIn</h2>
+      <p class="hint">
+        Abra uma busca no LinkedIn Sales Navigator ou uma página de empresa,
+        e clique abaixo para capturar os leads visíveis.
+      </p>
+      <button id="capture-linkedin" class="btn-primary">📥 Capturar página atual</button>
+      <div id="linkedin-status" class="status-box"></div>
+      <div id="linkedin-preview"></div>
+    </section>
+
+    <!-- ABA: Configurações -->
+    <section id="tab-settings" class="tab-content">
+      <h2>Configuração</h2>
+      <div class="form-row">
+        <label for="api-url-input">URL do servidor</label>
+        <input type="text" id="api-url-input" value="http://127.0.0.1:8765" />
+      </div>
+      <div class="form-row">
+        <label for="api-token-input">Token da API</label>
+        <input type="password" id="api-token-input" />
+      </div>
+      <button id="save-settings" class="btn-primary">Salvar</button>
+      <p class="hint">
+        Configure no <code>.env</code> do servidor a variável <code>API_TOKEN</code>
+        com o mesmo valor.
+      </p>
+    </section>
+  </main>
+
+  <nav class="tabs">
+    <button data-tab="dashboard" class="tab-btn active">Dashboard</button>
+    <button data-tab="linkedin" class="tab-btn">LinkedIn</button>
+    <button data-tab="settings" class="tab-btn">⚙</button>
+  </nav>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,1006 @@
+/* ============================================================================
+   Solvefy — Design System Tokens
+   ============================================================================
+
+   PRODUCTION FIDELITY
+   This file mirrors 1:1 the tokens defined in the Solvefy
+   `disparo-design-system` Storybook (current build on Chromatic).
+   Source extraction: ui_kits/storybook-source/theme-*.css
+
+   Stack used by the dev team:
+     • React + Vite + TypeScript
+     • Tailwind CSS v4
+     • react-aria-components
+     • Storybook 10.3.4 (hosted on Chromatic)
+     • pnpm + Turborepo monorepo
+
+   THEMING
+   Default = Solvefy (this :root scope).
+   Apply `.brand-ads | .brand-cpaas | .brand-mkt` on <html>/<body> to swap.
+   Apply `.dark-mode` (combinable with brand classes) for dark mode.
+
+   BRAND THEMES
+   Default = Solvefy (this :root scope).
+   Apply one of the following classes on <html>/<body> to activate a sub-brand:
+     .brand-admin | .brand-crm | .brand-ads | .brand-marketing |
+     .brand-conversation | .brand-cpaas | .brand-cloud |
+     .brand-agents | .brand-clila
+   Legacy aliases still work: .brand-mkt → Marketing, .brand-ads, .brand-cpaas
+   Apply .dark-mode (combinable with any brand class) for dark mode.
+
+   PALETTES FROM FIGMA
+   All brand color scales sourced from:
+   figma.com/design/mum025GIbw6rwtahjnqcsS (node 1525:270285)
+   Last synced: 2026-04-29
+   ============================================================================ */
+
+/* ============================================================================
+   FONT IMPORTS
+   ============================================================================ */
+/* Inter 18pt — body / UI typeface (9 weights + italics, optical size 18pt) */
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-Thin.ttf')             format('truetype'); font-weight: 100; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-ThinItalic.ttf')       format('truetype'); font-weight: 100; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-ExtraLight.ttf')       format('truetype'); font-weight: 200; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-ExtraLightItalic.ttf') format('truetype'); font-weight: 200; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-Light.ttf')            format('truetype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-LightItalic.ttf')      format('truetype'); font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-Regular.ttf')          format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-Italic.ttf')           format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-Medium.ttf')           format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-MediumItalic.ttf')     format('truetype'); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-SemiBold.ttf')         format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-SemiBoldItalic.ttf')   format('truetype'); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-Bold.ttf')             format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-BoldItalic.ttf')       format('truetype'); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-ExtraBold.ttf')        format('truetype'); font-weight: 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-ExtraBoldItalic.ttf')  format('truetype'); font-weight: 800; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-Black.ttf')            format('truetype'); font-weight: 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-BlackItalic.ttf')      format('truetype'); font-weight: 900; font-style: italic; font-display: swap; }
+
+/* Pacaembu — display / brand typeface (7 weights) */
+@font-face { font-family: 'Pacaembu'; src: url('fonts/Pacaembu-Thin.otf')    format('opentype'); font-weight: 100; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Pacaembu'; src: url('fonts/Pacaembu-Light.otf')   format('opentype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Pacaembu'; src: url('fonts/Pacaembu-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Pacaembu'; src: url('fonts/Pacaembu-Medium.otf')  format('opentype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Pacaembu'; src: url('fonts/Pacaembu-Bold.otf')    format('opentype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Pacaembu'; src: url('fonts/Pacaembu-Black.otf')   format('opentype'); font-weight: 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Pacaembu'; src: url('fonts/Pacaembu-Ultra.otf')   format('opentype'); font-weight: 950; font-style: normal; font-display: swap; }
+
+/* Urbanist — alternative body / UI typeface (9 weights, italics included) */
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-Thin.ttf')             format('truetype'); font-weight: 100; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-ThinItalic.ttf')       format('truetype'); font-weight: 100; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-ExtraLight.ttf')       format('truetype'); font-weight: 200; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-ExtraLightItalic.ttf') format('truetype'); font-weight: 200; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-Light.ttf')            format('truetype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-LightItalic.ttf')      format('truetype'); font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-Regular.ttf')          format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-Italic.ttf')           format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-Medium.ttf')           format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-MediumItalic.ttf')     format('truetype'); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-SemiBold.ttf')         format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-SemiBoldItalic.ttf')   format('truetype'); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-Bold.ttf')             format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-BoldItalic.ttf')       format('truetype'); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-ExtraBold.ttf')        format('truetype'); font-weight: 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-ExtraBoldItalic.ttf')  format('truetype'); font-weight: 800; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-Black.ttf')            format('truetype'); font-weight: 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Urbanist'; src: url('fonts/Urbanist-BlackItalic.ttf')      format('truetype'); font-weight: 900; font-style: italic; font-display: swap; }
+
+/* ============================================================================
+   CLAUDE DESIGN CONTRACT — TOKEN ALIASES
+   These names are the standard contract expected by Claude Design and the
+   `figma-implement-design` / `solvefy-design-system` skills. They alias to
+   the project's richer Solvefy token vocabulary defined further below.
+   Do not hardcode values here — only `var(--…)` references.
+   ============================================================================ */
+:root {
+  /* ── Brand colors ─────────────────────────────────── */
+  --color-primary:          var(--color-bg-brand-solid);
+  --color-primary-hover:    var(--color-bg-brand-solid-hover);
+  --color-secondary:        var(--color-bg-secondary);
+  --color-secondary-hover:  var(--color-bg-secondary-hover);
+  --color-accent:           var(--color-fg-brand-primary);
+
+  /* ── Semantic ─────────────────────────────────────── */
+  --color-success:          var(--color-fg-success-primary);
+  --color-warning:          var(--color-fg-warning-primary);
+  --color-error:            var(--color-fg-error-primary);
+  --color-info:             #0284c7;
+
+  /* ── Background / surface ─────────────────────────── */
+  --color-bg-page:          var(--color-bg-primary);
+  --color-bg-surface:       var(--color-bg-secondary);
+  --color-bg-overlay:       rgba(0, 0, 0, 0.5);
+
+  /* ── Typography — families ────────────────────────── */
+  --font-display:           'Pacaembu', var(--font-body);
+  --font-heading:           var(--font-display);
+  --font-alt:               'Urbanist', var(--font-body);
+  /* --font-body and --font-mono already exist in :root below */
+
+  /* ── Typography — scale ───────────────────────────── */
+  --font-size-xs:           var(--text-xs);
+  --font-size-sm:           var(--text-sm);
+  --font-size-base:         var(--text-md);
+  --font-size-lg:           var(--text-lg);
+  --font-size-xl:           var(--text-xl);
+  --font-size-2xl:          var(--text-2xl);
+  --font-size-3xl:          var(--text-display-sm);
+  --font-size-4xl:          var(--text-display-md);
+
+  /* ── Typography — line heights ────────────────────── */
+  --line-height-tight:      1.25;
+  --line-height-normal:     1.5;
+  --line-height-relaxed:    1.75;
+
+  /* ── Typography — weights ─────────────────────────── */
+  --font-weight-regular:    var(--font-normal);
+  --font-weight-medium:     var(--font-medium);
+  --font-weight-semibold:   var(--font-semibold);
+  --font-weight-bold:       var(--font-bold);
+
+  /* ── Spacing — number-keyed scale ─────────────────── */
+  --space-1:                var(--spacing-xs);     /* 4px  */
+  --space-2:                var(--spacing-md);     /* 8px  */
+  --space-3:                var(--spacing-lg);     /* 12px */
+  --space-4:                var(--spacing-xl);     /* 16px */
+  --space-6:                var(--spacing-3xl);    /* 24px */
+  --space-8:                var(--spacing-5xl);    /* 40px */
+  --space-12:               3rem;                  /* 48px */
+  --space-16:               var(--spacing-7xl);    /* 64px */
+
+  /* ── Shadow aliases ───────────────────────────────── */
+  --shadow-sm:              var(--shadow-xs);
+  --shadow-md:              0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg:              0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================================================
+   ROOT TOKENS — Default theme = Solvefy (light mode)
+   ============================================================================ */
+:root, :host {
+  /* === Font families ===================================================== */
+  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: ui-monospace, "Roboto Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-body: var(--font-inter, "Inter"), -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --default-font-family: var(--font-sans);
+  --default-mono-font-family: var(--font-mono);
+
+  /* === Font weights ====================================================== */
+  --font-normal:   400;
+  --font-medium:   500;
+  --font-semibold: 600;
+  --font-bold:     700;
+
+  /* === Text sizes & line heights ========================================= */
+  --text-xs:   0.75rem;   --text-xs--line-height:  1.125rem;  --text-xs--letter-spacing:  0em;
+  --text-sm:   0.875rem;  --text-sm--line-height:  1.25rem;   --text-sm--letter-spacing:  0em;
+  --text-md:   1rem;      --text-md--line-height:  1.5rem;    --text-md--letter-spacing:  0em;
+  --text-base: 1rem;      --text-base--line-height: calc(1.5 / 1);
+  --text-lg:   1.125rem;  --text-lg--line-height:  1.75rem;   --text-lg--letter-spacing:  0em;
+  --text-xl:   1.25rem;   --text-xl--line-height:  1.875rem;  --text-xl--letter-spacing:  0em;
+  --text-2xl:  1.5rem;    --text-2xl--line-height: calc(2 / 1.5);
+  --text-4xl:  2.25rem;   --text-4xl--line-height: calc(2.5 / 2.25);
+
+  /* === Display sizes ===================================================== */
+  --text-display-xs:  1.5rem;    --text-display-xs--line-height:  2rem;     --text-display-xs--letter-spacing:  0em;
+  --text-display-sm:  1.875rem;  --text-display-sm--line-height:  2.375rem; --text-display-sm--letter-spacing:  0em;
+  --text-display-md:  2.25rem;   --text-display-md--line-height:  2.75rem;  --text-display-md--letter-spacing:  -0.02em;
+  --text-display-lg:  3rem;      --text-display-lg--line-height:  3.75rem;  --text-display-lg--letter-spacing:  -0.02em;
+  --text-display-xl:  3.75rem;   --text-display-xl--line-height:  4.5rem;   --text-display-xl--letter-spacing:  -0.02em;
+  --text-display-2xl: 4.5rem;    --text-display-2xl--line-height: 5.625rem; --text-display-2xl--letter-spacing: -0.02em;
+
+  /* === Tracking & leading ================================================ */
+  --tracking-wider: 0.05em;
+  --leading-snug:   1.375;
+
+  /* === Spacing =========================================================== */
+  --spacing:       0.25rem;
+  --spacing-none:  0rem;
+  --spacing-xs:    0.25rem;   /* 4px  */
+  --spacing-sm:    0.375rem;  /* 6px  */
+  --spacing-md:    0.5rem;    /* 8px  */
+  --spacing-lg:    0.75rem;   /* 12px */
+  --spacing-xl:    1rem;      /* 16px */
+  --spacing-2xl:   1.25rem;   /* 20px */
+  --spacing-3xl:   1.5rem;    /* 24px */
+  --spacing-5xl:   2.5rem;    /* 40px */
+  --spacing-7xl:   4rem;      /* 64px */
+
+  /* === Radius ============================================================ */
+  --radius-none:   0rem;
+  --radius-xs:     0.25rem;   /* 4px  */
+  --radius-sm:     0.375rem;  /* 6px  */
+  --radius-md:     0.5rem;    /* 8px  */
+  --radius-lg:     0.625rem;  /* 10px */
+  --radius-xl:     0.75rem;   /* 12px */
+  --radius-2xl:    1rem;      /* 16px */
+  --radius-3xl:    1.25rem;   /* 20px */
+  --radius-full:   9999px;
+
+  /* === Blur ============================================================== */
+  --blur-xs:  4px;
+  --blur-md:  12px;
+  --blur-3xl: 64px;
+
+  /* === Easing & transitions ============================================== */
+  --ease-in:                            cubic-bezier(0.4, 0, 1, 1);
+  --ease-out:                           cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out:                        cubic-bezier(0.4, 0, 0.2, 1);
+  --default-transition-duration:        0.15s;
+  --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* === Animations ======================================================== */
+  --animate-spin:        spin 1s linear infinite;
+  --animate-caret-blink: caret-blink 1s infinite;
+
+  /* === Shadows =========================================================== */
+  --shadow-xs:           0 1px 2px 0 #0a0d120d;
+  --drop-shadow-sm:      0 1px 2px #00000026;
+  --shadow-skeuomorphic: inset 0 0 0 1px #0000002e, inset 0 -2px 0 0 #0000000d;
+
+  /* ============================================================
+     COLORS — Base
+     ============================================================ */
+  --color-base-white:  #ffffff;
+  --color-black:       #000000;
+  --color-white:       #ffffff;
+  --color-transparent: #00000000;
+
+  /* ============================================================
+     COLORS — Tailwind v4 standard scales (used by utility classes)
+     Kept in oklch() since Chrome 111+, Safari 15.4+, Firefox 113+
+     all support the format natively.
+     ============================================================ */
+
+  /* Orange */
+  --color-orange-50:  oklch(98%   0.016 73.684);
+  --color-orange-100: oklch(95.4% 0.038 75.164);
+  --color-orange-200: oklch(90.1% 0.076 70.697);
+  --color-orange-400: oklch(75%   0.183 55.934);
+  --color-orange-500: oklch(70.5% 0.213 47.604);
+  --color-orange-600: oklch(64.6% 0.222 41.116);
+  --color-orange-700: oklch(55.3% 0.195 38.402);
+
+  /* Blue */
+  --color-blue-50:  oklch(97%   0.014 254.604);
+  --color-blue-100: oklch(93.2% 0.032 255.585);
+  --color-blue-200: oklch(88.2% 0.059 254.128);
+  --color-blue-400: oklch(70.7% 0.165 254.624);
+  --color-blue-500: oklch(62.3% 0.214 259.815);
+  --color-blue-600: oklch(54.6% 0.245 262.881);
+  --color-blue-700: oklch(48.8% 0.243 264.376);
+  --color-blue-800: oklch(42.4% 0.199 265.638);
+
+  /* Indigo */
+  --color-indigo-50:  oklch(96.2% 0.018 272.314);
+  --color-indigo-100: oklch(93%   0.034 272.788);
+  --color-indigo-200: oklch(87%   0.065 274.039);
+  --color-indigo-400: oklch(67.3% 0.182 276.935);
+  --color-indigo-500: oklch(58.5% 0.233 277.117);
+  --color-indigo-600: oklch(51.1% 0.262 276.966);
+  --color-indigo-700: oklch(45.7% 0.24 277.023);
+
+  /* Purple */
+  --color-purple-50:  oklch(97.7% 0.014 308.299);
+  --color-purple-100: oklch(94.6% 0.033 307.174);
+  --color-purple-200: oklch(90.2% 0.063 306.703);
+  --color-purple-400: oklch(71.4% 0.203 305.504);
+  --color-purple-500: oklch(62.7% 0.265 303.9);
+  --color-purple-600: oklch(55.8% 0.288 302.321);
+  --color-purple-700: oklch(49.6% 0.265 301.924);
+
+  /* Pink */
+  --color-pink-50:  oklch(97.1% 0.014 343.198);
+  --color-pink-100: oklch(94.8% 0.028 342.258);
+  --color-pink-200: oklch(89.9% 0.061 343.231);
+  --color-pink-400: oklch(71.8% 0.202 349.761);
+  --color-pink-500: oklch(65.6% 0.241 354.308);
+  --color-pink-600: oklch(59.2% 0.249 0.584);
+  --color-pink-700: oklch(52.5% 0.223 3.958);
+
+  /* ============================================================
+     COLORS — Solvefy brand scale
+     Figma: Colors/Solvefy — node 1525:270285
+     ============================================================ */
+  --color-utility-brand-50:   #ccf9e3;
+  --color-brand-50:           #ccf9e3;
+  --color-utility-brand-100:  #a3f4cc;
+  --color-brand-100:          #a3f4cc;
+  --color-utility-brand-200:  #7aeeb5;
+  --color-brand-200:          #7aeeb5;
+  --color-utility-brand-300:  #52e99e;
+  --color-brand-300:          #52e99e;
+  --color-utility-brand-400:  #29e488;
+  --color-brand-400:          #29e488;
+  --color-utility-brand-500:  #00df71;  /* ← BRAND solid */
+  --color-brand-500:          #00df71;
+  --color-utility-brand-600:  #00bf61;
+  --color-brand-600:          #00bf61;
+  --color-utility-brand-700:  #009f51;
+  --color-brand-700:          #009f51;
+  --color-utility-brand-800:  #007f40;
+  --color-brand-800:          #007f40;
+  --color-utility-brand-900:  #005f30;
+  --color-brand-900:          #005f30;
+  --color-utility-brand-950:  #003e20;
+  --color-brand-950:          #003e20;
+
+  /* ============================================================
+     COLORS — Neutral
+     ============================================================ */
+  --color-neutral-50:   #fafafa;
+  --color-neutral-100:  #f5f5f5;
+  --color-neutral-200:  #e5e5e5;
+  --color-neutral-300:  #d4d4d4;
+  --color-neutral-400:  #a3a3a3;
+  --color-neutral-500:  #737373;
+  --color-neutral-600:  #525252;
+  --color-neutral-700:  #404040;
+  --color-neutral-800:  #262626;
+  --color-neutral-900:  #171717;
+  --color-neutral-950:  #0a0a0a;
+
+  --color-utility-neutral-50:   #fafafa;
+  --color-utility-neutral-100:  #f5f5f5;
+  --color-utility-neutral-200:  #e5e5e5;
+  --color-utility-neutral-300:  #d4d4d4;
+  --color-utility-neutral-400:  #a3a3a3;
+  --color-utility-neutral-500:  #737373;
+  --color-utility-neutral-600:  #525252;
+  --color-utility-neutral-700:  #404040;
+  --color-utility-neutral-900:  #171717;
+
+  /* ============================================================
+     COLORS — Semantic scales (Error / Warning / Success)
+     ============================================================ */
+
+  /* Error (red) */
+  --color-error-200: #fecaca;
+  --color-error-300: #fca5a5;
+  --color-error-600: #dc2626;
+  --color-utility-red-50:   #fef2f2;
+  --color-utility-red-100:  #fee2e2;
+  --color-utility-red-200:  #fecaca;
+  --color-utility-red-300:  #fca5a5;
+  --color-utility-red-400:  #f87171;
+  --color-utility-red-500:  #ef4444;
+  --color-utility-red-600:  #dc2626;
+  --color-utility-red-700:  #b91c1c;
+
+  /* Warning (yellow) */
+  --color-warning-200: #fef08a;
+  --color-warning-400: #facc15;
+  --color-warning-600: #ca8a04;
+  --color-utility-yellow-50:  #fefce8;
+  --color-utility-yellow-100: #fef9c3;
+  --color-utility-yellow-200: #fef08a;
+  --color-utility-yellow-300: #fde047;
+  --color-utility-yellow-400: #facc15;
+  --color-utility-yellow-500: #eab308;
+  --color-utility-yellow-600: #ca8a04;
+  --color-utility-yellow-700: #a16207;
+
+  /* Success (green) */
+  --color-success-200: #bbf7d0;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-utility-green-50:  #f0fdf4;
+  --color-utility-green-100: #dcfce7;
+  --color-utility-green-200: #bbf7d0;
+  --color-utility-green-300: #86efac;
+  --color-utility-green-400: #4ade80;
+  --color-utility-green-500: #22c55e;
+  --color-utility-green-600: #16a34a;
+  --color-utility-green-700: #15803d;
+
+  /* ============================================================
+     COLORS — Sub-brand scales (per product)
+     Figma: Colors/[Brand] — node 1525:270285
+     Activated via .brand-[name] class on <html>/<body>.
+     ============================================================ */
+
+  /* Admin — red */
+  --color-utility-admin-50:  #f9d8d8;
+  --color-utility-admin-100: #f5b8b8;
+  --color-utility-admin-200: #f09999;
+  --color-utility-admin-300: #ec7a7a;
+  --color-utility-admin-400: #e85a5a;
+  --color-utility-admin-500: #e33b3b;
+  --color-utility-admin-600: #c23333;
+  --color-utility-admin-700: #a22a2a;
+  --color-utility-admin-800: #812222;
+  --color-utility-admin-900: #601919;
+  --color-utility-admin-950: #401111;
+
+  /* CRM — orange */
+  --color-utility-crm-50:  #f9dfd2;
+  --color-utility-crm-100: #f4c6ad;
+  --color-utility-crm-200: #efad89;
+  --color-utility-crm-300: #eb9465;
+  --color-utility-crm-400: #e67a40;
+  --color-utility-crm-500: #e1611c;
+  --color-utility-crm-600: #c15318;
+  --color-utility-crm-700: #a04514;
+  --color-utility-crm-800: #803710;
+  --color-utility-crm-900: #5f290c;
+  --color-utility-crm-950: #3f1b08;
+
+  /* Ads — amber/gold */
+  --color-utility-ads-50:  #fceecc;
+  --color-utility-ads-100: #fae0a3;
+  --color-utility-ads-200: #f7d27a;
+  --color-utility-ads-300: #f5c452;
+  --color-utility-ads-400: #f2b629;
+  --color-utility-ads-500: #f0a800;
+  --color-utility-ads-600: #cd9000;
+  --color-utility-ads-700: #ab7800;
+  --color-utility-ads-800: #885f00;
+  --color-utility-ads-900: #664700;
+  --color-utility-ads-950: #432f00;
+
+  /* Marketing (alias: mkt) — pink */
+  --color-utility-marketing-50:  #fadaeb;
+  --color-utility-marketing-100: #f6bcda;
+  --color-utility-marketing-200: #f29eca;
+  --color-utility-marketing-300: #ee80ba;
+  --color-utility-marketing-400: #ea62a9;
+  --color-utility-marketing-500: #e64499;
+  --color-utility-marketing-600: #c53a83;
+  --color-utility-marketing-700: #a4306d;
+  --color-utility-marketing-800: #832757;
+  --color-utility-marketing-900: #621d41;
+  --color-utility-marketing-950: #40132b;
+  /* Legacy alias */
+  --color-utility-mkt-50:  var(--color-utility-marketing-50);
+  --color-utility-mkt-100: var(--color-utility-marketing-100);
+  --color-utility-mkt-200: var(--color-utility-marketing-200);
+  --color-utility-mkt-300: var(--color-utility-marketing-300);
+  --color-utility-mkt-400: var(--color-utility-marketing-400);
+  --color-utility-mkt-500: var(--color-utility-marketing-500);
+  --color-utility-mkt-600: var(--color-utility-marketing-600);
+  --color-utility-mkt-700: var(--color-utility-marketing-700);
+
+  /* Conversation — violet/purple */
+  --color-utility-conversation-50:  #ecddf6;
+  --color-utility-conversation-100: #dec3ee;
+  --color-utility-conversation-200: #cfa8e7;
+  --color-utility-conversation-300: #c08de0;
+  --color-utility-conversation-400: #b172d8;
+  --color-utility-conversation-500: #a257d1;
+  --color-utility-conversation-600: #8b4bb3;
+  --color-utility-conversation-700: #733e95;
+  --color-utility-conversation-800: #5c3177;
+  --color-utility-conversation-900: #452559;
+  --color-utility-conversation-950: #2d183b;
+
+  /* CPaaS — indigo/violet */
+  --color-utility-cpaas-50:  #ebe5ff;
+  --color-utility-cpaas-100: #dbd0ff;
+  --color-utility-cpaas-200: #ccbaff;
+  --color-utility-cpaas-300: #bca5ff;
+  --color-utility-cpaas-400: #ac90ff;
+  --color-utility-cpaas-500: #9c7bff;
+  --color-utility-cpaas-600: #8669da;
+  --color-utility-cpaas-700: #6f58b6;
+  --color-utility-cpaas-800: #594691;
+  --color-utility-cpaas-900: #42346c;
+  --color-utility-cpaas-950: #2c2247;
+
+  /* Cloud — cyan */
+  --color-utility-cloud-50:  #ccf5ff;
+  --color-utility-cloud-100: #a3ecff;
+  --color-utility-cloud-200: #7ae4ff;
+  --color-utility-cloud-300: #52dcff;
+  --color-utility-cloud-400: #29d3ff;
+  --color-utility-cloud-500: #00cbff;
+  --color-utility-cloud-600: #00aeda;
+  --color-utility-cloud-700: #0091b6;
+  --color-utility-cloud-800: #007391;
+  --color-utility-cloud-900: #00566c;
+  --color-utility-cloud-950: #003947;
+
+  /* Agents — steel blue */
+  --color-utility-agents-50:  #e0e7f3;
+  --color-utility-agents-100: #c7d4ea;
+  --color-utility-agents-200: #aec1e0;
+  --color-utility-agents-300: #96add7;
+  --color-utility-agents-400: #7d9acd;
+  --color-utility-agents-500: #6487c4;
+  --color-utility-agents-600: #5674a8;
+  --color-utility-agents-700: #47608c;
+  --color-utility-agents-800: #394d6f;
+  --color-utility-agents-900: #2a3953;
+  --color-utility-agents-950: #1c2637;
+
+  /* Clila — olive/khaki */
+  --color-utility-clila-50:  #eeede1;
+  --color-utility-clila-100: #e1dec9;
+  --color-utility-clila-200: #d4d0b1;
+  --color-utility-clila-300: #c7c198;
+  --color-utility-clila-400: #b9b380;
+  --color-utility-clila-500: #aca468;
+  --color-utility-clila-600: #938c59;
+  --color-utility-clila-700: #7b754a;
+  --color-utility-clila-800: #625d3b;
+  --color-utility-clila-900: #49462c;
+  --color-utility-clila-950: #302e1d;
+
+  /* Slate (utility) */
+  --color-utility-slate-50:  #f8fafc;
+  --color-utility-slate-100: #f1f5f9;
+  --color-utility-slate-200: #e2e8f0;
+  --color-utility-slate-400: #94a3b8;
+  --color-utility-slate-500: #64748b;
+  --color-utility-slate-600: #475569;
+  --color-utility-slate-700: #334155;
+
+  /* Sky (utility) */
+  --color-utility-sky-50:  #f0f9ff;
+  --color-utility-sky-100: #e0f2fe;
+  --color-utility-sky-200: #bae6fd;
+  --color-utility-sky-400: #38bdf8;
+  --color-utility-sky-500: #0ea5e9;
+  --color-utility-sky-600: #0284c7;
+  --color-utility-sky-700: #0369a1;
+
+  /* ============================================================
+     SEMANTIC TOKENS — Text
+     ============================================================ */
+  --color-text-primary:               #171717;
+  --color-text-secondary:             #404040;
+  --color-text-secondary-hover:       #262626;
+  --color-text-tertiary:              #525252;
+  --color-text-tertiary-hover:        #404040;
+  --color-text-quaternary:            #737373;
+  --color-text-white:                 #ffffff;
+  --color-text-placeholder:           #737373;
+  --color-text-brand-primary:         #005f30;
+  --color-text-brand-secondary:       #009f51;
+  --color-text-brand-secondary-hover: #007f40;
+  --color-text-brand-tertiary:        #00bf61;
+  --color-text-error-primary:         #dc2626;
+  --color-text-error-primary-hover:   #b91c1c;
+  --color-text-warning-primary:       #ca8a04;
+  --color-text-success-primary:       #16a34a;
+  --color-text-primary-on-brand:      #171717;
+  --color-text-secondary-on-brand:    #7aeeb5;
+
+  /* ============================================================
+     SEMANTIC TOKENS — Background
+     ============================================================ */
+  --color-bg-primary:           #ffffff;
+  --color-bg-primary-alt:       #ffffff;
+  --color-bg-primary-hover:     #fafafa;
+  --color-bg-secondary:         #fafafa;
+  --color-bg-secondary-hover:   #f5f5f5;
+  --color-bg-secondary-alt:     #fafafa;
+  --color-bg-secondary-solid:   #525252;
+  --color-bg-tertiary:          #f5f5f5;
+  --color-bg-quaternary:        #e5e5e5;
+  --color-bg-active:            #fafafa;
+  --color-bg-overlay:           #0a0a0a;
+  --color-bg-brand-primary:     #ccf9e3;
+  --color-bg-brand-primary-alt: #ccf9e3;
+  --color-bg-brand-secondary:   #a3f4cc;
+  --color-bg-brand-solid:       #00df71;
+  --color-bg-brand-solid-hover: #00bf61;
+  --color-bg-error-primary:     #fef2f2;
+  --color-bg-error-secondary:   #fee2e2;
+  --color-bg-error-solid:       #dc2626;
+  --color-bg-error-solid-hover: #b91c1c;
+  --color-bg-warning-secondary: #fef9c3;
+  --color-bg-warning-solid:     #ca8a04;
+  --color-bg-success-primary:   #f0fdf4;
+  --color-bg-success-secondary: #dcfce7;
+  --color-bg-success-solid:     #16a34a;
+
+  /* ============================================================
+     SEMANTIC TOKENS — Foreground (icons + glyphs over solids)
+     ============================================================ */
+  --color-fg-primary:           #171717;
+  --color-fg-secondary:         #404040;
+  --color-fg-tertiary:          #525252;
+  --color-fg-quaternary:        #a3a3a3;
+  --color-fg-white:             #ffffff;
+  --color-fg-brand-primary:     #00df71;
+  --color-fg-brand-primary-alt: #00df71;
+  --color-fg-brand-secondary:   #29e488;
+  --color-fg-error-primary:     #dc2626;
+  --color-fg-error-secondary:   #ef4444;
+  --color-fg-warning-primary:   #ca8a04;
+  --color-fg-warning-secondary: #eab308;
+  --color-fg-success-primary:   #16a34a;
+  --color-fg-success-secondary: #22c55e;
+
+  /* ============================================================
+     SEMANTIC TOKENS — Border
+     ============================================================ */
+  --color-border-primary:       #d4d4d4;
+  --color-border-secondary:     #e5e5e5;
+  --color-border-secondary-alt: #0000001a;
+  --color-border-tertiary:      #f5f5f5;
+  --color-border-brand:         #29e488;
+  --color-border-brand-alt:     #00df71;
+  --color-border-error:         #ef4444;
+  --color-border-error-subtle:  #fca5a5;
+
+  /* ============================================================
+     COMPONENT TOKENS
+     Specific styles tied to individual components.
+     ============================================================ */
+  --color-app-store-badge-border:                 #a6a6a6;
+  --color-avatar-contrast-border:                 #00000014;
+  --color-avatar-styles-bg-neutral:               #e0e0e0;
+  --color-button-destructive-primary-icon:        var(--color-error-300);
+  --color-button-destructive-primary-icon-hover:  var(--color-error-200);
+  --color-featured-icon-light-fg-brand:           var(--color-brand-600);
+  --color-featured-icon-light-fg-error:           var(--color-error-600);
+  --color-featured-icon-light-fg-gray:            var(--color-neutral-500);
+  --color-featured-icon-light-fg-success:         var(--color-success-600);
+  --color-featured-icon-light-fg-warning:         var(--color-warning-600);
+  --color-focus-ring:                             var(--color-brand-500);
+  --color-slider-handle-bg:                       var(--color-white);
+  --color-slider-handle-border:                   var(--color-brand-600);
+  --color-toggle-border:                          var(--color-neutral-300);
+  --color-toggle-slim-border-pressed:             var(--color-bg-brand-solid);
+  --color-toggle-slim-border-pressed-hover:       var(--color-bg-brand-solid-hover);
+  --color-tooltip-supporting-text:                var(--color-neutral-300);
+}
+
+/* ============================================================================
+   BRAND THEMES — sub-product overrides
+   Apply to <html> or <body>: e.g. <html class="brand-admin">
+   Each block only overrides brand-related semantic tokens.
+   Convention: 500 = solid button, 600 = hover, 400 = border/focus-ring.
+   ============================================================================ */
+
+/* === ADMIN theme — red === */
+.brand-admin {
+  --color-text-primary-on-brand:      #ffffff;
+  --color-text-secondary-on-brand:    #f09999;
+  --color-text-tertiary-on-brand:     #f09999;
+  --color-text-quaternary-on-brand:   #ec7a7a;
+  --color-text-brand-primary:         #601919;
+  --color-text-brand-secondary:       #a22a2a;
+  --color-text-brand-secondary-hover: #812222;
+  --color-text-brand-tertiary:        #c23333;
+  --color-text-brand-tertiary-alt:    #c23333;
+  --color-bg-brand-primary:           #f9d8d8;
+  --color-bg-brand-primary-alt:       #f9d8d8;
+  --color-bg-brand-secondary:         #f5b8b8;
+  --color-bg-brand-solid:             #e33b3b;
+  --color-bg-brand-solid-hover:       #c23333;
+  --color-bg-brand-section:           #812222;
+  --color-bg-brand-section-subtle:    #a22a2a;
+  --color-border-brand:               #e85a5a;
+  --color-border-brand-alt:           #e33b3b;
+  --color-fg-white:                   #ffffff;
+  --color-fg-brand-primary:           #e33b3b;
+  --color-fg-brand-primary-alt:       #e33b3b;
+  --color-fg-brand-secondary:         #e85a5a;
+  --color-fg-brand-secondary-alt:     #e85a5a;
+  --color-fg-brand-secondary-hover:   #e33b3b;
+  --color-focus-ring:                 #e85a5a;
+}
+
+/* === CRM theme — orange === */
+.brand-crm {
+  --color-text-primary-on-brand:      #ffffff;
+  --color-text-secondary-on-brand:    #efad89;
+  --color-text-tertiary-on-brand:     #efad89;
+  --color-text-quaternary-on-brand:   #eb9465;
+  --color-text-brand-primary:         #5f290c;
+  --color-text-brand-secondary:       #a04514;
+  --color-text-brand-secondary-hover: #803710;
+  --color-text-brand-tertiary:        #c15318;
+  --color-text-brand-tertiary-alt:    #c15318;
+  --color-bg-brand-primary:           #f9dfd2;
+  --color-bg-brand-primary-alt:       #f9dfd2;
+  --color-bg-brand-secondary:         #f4c6ad;
+  --color-bg-brand-solid:             #e1611c;
+  --color-bg-brand-solid-hover:       #c15318;
+  --color-bg-brand-section:           #803710;
+  --color-bg-brand-section-subtle:    #a04514;
+  --color-border-brand:               #e67a40;
+  --color-border-brand-alt:           #e1611c;
+  --color-fg-white:                   #ffffff;
+  --color-fg-brand-primary:           #e1611c;
+  --color-fg-brand-primary-alt:       #e1611c;
+  --color-fg-brand-secondary:         #e67a40;
+  --color-fg-brand-secondary-alt:     #e67a40;
+  --color-fg-brand-secondary-hover:   #e1611c;
+  --color-focus-ring:                 #e67a40;
+}
+
+/* === ADS theme — amber/gold === */
+.brand-ads {
+  --color-text-secondary-on-brand:    #f7d27a;
+  --color-text-tertiary-on-brand:     #f7d27a;
+  --color-text-quaternary-on-brand:   #f5c452;
+  --color-text-brand-primary:         #664700;
+  --color-text-brand-secondary:       #ab7800;
+  --color-text-brand-secondary-hover: #885f00;
+  --color-text-brand-tertiary:        #cd9000;
+  --color-text-brand-tertiary-alt:    #cd9000;
+  --color-bg-brand-primary:           #fceecc;
+  --color-bg-brand-primary-alt:       #fceecc;
+  --color-bg-brand-secondary:         #fae0a3;
+  --color-bg-brand-solid:             #f0a800;
+  --color-bg-brand-solid-hover:       #cd9000;
+  --color-bg-brand-section:           #885f00;
+  --color-bg-brand-section-subtle:    #ab7800;
+  --color-border-brand:               #f2b629;
+  --color-border-brand-alt:           #f0a800;
+  --color-fg-white:                   #ffffff;
+  --color-fg-brand-primary:           #f0a800;
+  --color-fg-brand-primary-alt:       #f0a800;
+  --color-fg-brand-secondary:         #f2b629;
+  --color-fg-brand-secondary-alt:     #f2b629;
+  --color-fg-brand-secondary-hover:   #f0a800;
+  --color-focus-ring:                 #f2b629;
+}
+
+/* === MARKETING theme — pink (also aliased as .brand-mkt) === */
+.brand-marketing,
+.brand-mkt {
+  --color-text-primary-on-brand:      #ffffff;
+  --color-text-secondary-on-brand:    #f29eca;
+  --color-text-tertiary-on-brand:     #f29eca;
+  --color-text-quaternary-on-brand:   #ee80ba;
+  --color-text-brand-primary:         #621d41;
+  --color-text-brand-secondary:       #a4306d;
+  --color-text-brand-secondary-hover: #832757;
+  --color-text-brand-tertiary:        #c53a83;
+  --color-text-brand-tertiary-alt:    #c53a83;
+  --color-bg-brand-primary:           #fadaeb;
+  --color-bg-brand-primary-alt:       #fadaeb;
+  --color-bg-brand-secondary:         #f6bcda;
+  --color-bg-brand-solid:             #e64499;
+  --color-bg-brand-solid-hover:       #c53a83;
+  --color-bg-brand-section:           #832757;
+  --color-bg-brand-section-subtle:    #a4306d;
+  --color-border-brand:               #ea62a9;
+  --color-border-brand-alt:           #e64499;
+  --color-fg-white:                   #ffffff;
+  --color-fg-brand-primary:           #e64499;
+  --color-fg-brand-primary-alt:       #e64499;
+  --color-fg-brand-secondary:         #ea62a9;
+  --color-fg-brand-secondary-alt:     #ea62a9;
+  --color-fg-brand-secondary-hover:   #e64499;
+  --color-focus-ring:                 #ea62a9;
+}
+
+/* === CONVERSATION theme — violet/purple === */
+.brand-conversation {
+  --color-text-primary-on-brand:      #ffffff;
+  --color-text-secondary-on-brand:    #cfa8e7;
+  --color-text-tertiary-on-brand:     #cfa8e7;
+  --color-text-quaternary-on-brand:   #c08de0;
+  --color-text-brand-primary:         #452559;
+  --color-text-brand-secondary:       #733e95;
+  --color-text-brand-secondary-hover: #5c3177;
+  --color-text-brand-tertiary:        #8b4bb3;
+  --color-text-brand-tertiary-alt:    #8b4bb3;
+  --color-bg-brand-primary:           #ecddf6;
+  --color-bg-brand-primary-alt:       #ecddf6;
+  --color-bg-brand-secondary:         #dec3ee;
+  --color-bg-brand-solid:             #a257d1;
+  --color-bg-brand-solid-hover:       #8b4bb3;
+  --color-bg-brand-section:           #5c3177;
+  --color-bg-brand-section-subtle:    #733e95;
+  --color-border-brand:               #b172d8;
+  --color-border-brand-alt:           #a257d1;
+  --color-fg-white:                   #ffffff;
+  --color-fg-brand-primary:           #a257d1;
+  --color-fg-brand-primary-alt:       #a257d1;
+  --color-fg-brand-secondary:         #b172d8;
+  --color-fg-brand-secondary-alt:     #b172d8;
+  --color-fg-brand-secondary-hover:   #a257d1;
+  --color-focus-ring:                 #b172d8;
+}
+
+/* === CPAAS theme — indigo/violet === */
+.brand-cpaas {
+  --color-text-primary-on-brand:      #ffffff;
+  --color-text-secondary-on-brand:    #ccbaff;
+  --color-text-tertiary-on-brand:     #ccbaff;
+  --color-text-quaternary-on-brand:   #bca5ff;
+  --color-text-brand-primary:         #42346c;
+  --color-text-brand-secondary:       #6f58b6;
+  --color-text-brand-secondary-hover: #594691;
+  --color-text-brand-tertiary:        #8669da;
+  --color-text-brand-tertiary-alt:    #8669da;
+  --color-bg-brand-primary:           #ebe5ff;
+  --color-bg-brand-primary-alt:       #ebe5ff;
+  --color-bg-brand-secondary:         #dbd0ff;
+  --color-bg-brand-solid:             #9c7bff;
+  --color-bg-brand-solid-hover:       #8669da;
+  --color-bg-brand-section:           #594691;
+  --color-bg-brand-section-subtle:    #6f58b6;
+  --color-border-brand:               #ac90ff;
+  --color-border-brand-alt:           #9c7bff;
+  --color-fg-white:                   #ffffff;
+  --color-fg-brand-primary:           #9c7bff;
+  --color-fg-brand-primary-alt:       #9c7bff;
+  --color-fg-brand-secondary:         #ac90ff;
+  --color-fg-brand-secondary-alt:     #ac90ff;
+  --color-fg-brand-secondary-hover:   #9c7bff;
+  --color-focus-ring:                 #ac90ff;
+}
+
+/* === CLOUD theme — cyan === */
+.brand-cloud {
+  --color-text-secondary-on-brand:    #7ae4ff;
+  --color-text-tertiary-on-brand:     #7ae4ff;
+  --color-text-quaternary-on-brand:   #52dcff;
+  --color-text-brand-primary:         #00566c;
+  --color-text-brand-secondary:       #0091b6;
+  --color-text-brand-secondary-hover: #007391;
+  --color-text-brand-tertiary:        #00aeda;
+  --color-text-brand-tertiary-alt:    #00aeda;
+  --color-bg-brand-primary:           #ccf5ff;
+  --color-bg-brand-primary-alt:       #ccf5ff;
+  --color-bg-brand-secondary:         #a3ecff;
+  --color-bg-brand-solid:             #00cbff;
+  --color-bg-brand-solid-hover:       #00aeda;
+  --color-bg-brand-section:           #007391;
+  --color-bg-brand-section-subtle:    #0091b6;
+  --color-border-brand:               #29d3ff;
+  --color-border-brand-alt:           #00cbff;
+  --color-fg-white:                   #ffffff;
+  --color-fg-brand-primary:           #00cbff;
+  --color-fg-brand-primary-alt:       #00cbff;
+  --color-fg-brand-secondary:         #29d3ff;
+  --color-fg-brand-secondary-alt:     #29d3ff;
+  --color-fg-brand-secondary-hover:   #00cbff;
+  --color-focus-ring:                 #29d3ff;
+}
+
+/* === AGENTS theme — steel blue === */
+.brand-agents {
+  --color-text-primary-on-brand:      #ffffff;
+  --color-text-secondary-on-brand:    #aec1e0;
+  --color-text-tertiary-on-brand:     #aec1e0;
+  --color-text-quaternary-on-brand:   #96add7;
+  --color-text-brand-primary:         #2a3953;
+  --color-text-brand-secondary:       #47608c;
+  --color-text-brand-secondary-hover: #394d6f;
+  --color-text-brand-tertiary:        #5674a8;
+  --color-text-brand-tertiary-alt:    #5674a8;
+  --color-bg-brand-primary:           #e0e7f3;
+  --color-bg-brand-primary-alt:       #e0e7f3;
+  --color-bg-brand-secondary:         #c7d4ea;
+  --color-bg-brand-solid:             #6487c4;
+  --color-bg-brand-solid-hover:       #5674a8;
+  --color-bg-brand-section:           #394d6f;
+  --color-bg-brand-section-subtle:    #47608c;
+  --color-border-brand:               #7d9acd;
+  --color-border-brand-alt:           #6487c4;
+  --color-fg-white:                   #ffffff;
+  --color-fg-brand-primary:           #6487c4;
+  --color-fg-brand-primary-alt:       #6487c4;
+  --color-fg-brand-secondary:         #7d9acd;
+  --color-fg-brand-secondary-alt:     #7d9acd;
+  --color-fg-brand-secondary-hover:   #6487c4;
+  --color-focus-ring:                 #7d9acd;
+}
+
+/* === CLILA theme — olive/khaki === */
+.brand-clila {
+  --color-text-primary-on-brand:      #ffffff;
+  --color-text-secondary-on-brand:    #d4d0b1;
+  --color-text-tertiary-on-brand:     #d4d0b1;
+  --color-text-quaternary-on-brand:   #c7c198;
+  --color-text-brand-primary:         #49462c;
+  --color-text-brand-secondary:       #7b754a;
+  --color-text-brand-secondary-hover: #625d3b;
+  --color-text-brand-tertiary:        #938c59;
+  --color-text-brand-tertiary-alt:    #938c59;
+  --color-bg-brand-primary:           #eeede1;
+  --color-bg-brand-primary-alt:       #eeede1;
+  --color-bg-brand-secondary:         #e1dec9;
+  --color-bg-brand-solid:             #aca468;
+  --color-bg-brand-solid-hover:       #938c59;
+  --color-bg-brand-section:           #625d3b;
+  --color-bg-brand-section-subtle:    #7b754a;
+  --color-border-brand:               #b9b380;
+  --color-border-brand-alt:           #aca468;
+  --color-fg-white:                   #ffffff;
+  --color-fg-brand-primary:           #aca468;
+  --color-fg-brand-primary-alt:       #aca468;
+  --color-fg-brand-secondary:         #b9b380;
+  --color-fg-brand-secondary-alt:     #b9b380;
+  --color-fg-brand-secondary-hover:   #aca468;
+  --color-focus-ring:                 #b9b380;
+}
+
+/* ============================================================================
+   DARK MODE — apply `.dark-mode` to <html>/<body>.
+   Combinable with `.brand-X.dark-mode`.
+   ============================================================================ */
+
+.dark-mode {
+  --color-text-primary:               #fafafa;
+  --color-text-secondary:             #d4d4d4;
+  --color-text-secondary-hover:       #f5f5f5;
+  --color-text-tertiary:              #a3a3a3;
+  --color-text-tertiary-hover:        #d4d4d4;
+  --color-text-quaternary:            #737373;
+  --color-text-placeholder:           #525252;
+  --color-text-brand-primary:         #fafafa;
+  --color-text-brand-secondary:       #d4d4d4;
+  --color-text-error-primary:         #f87171;
+  --color-text-warning-primary:       #facc15;
+  --color-text-success-primary:       #4ade80;
+
+  --color-bg-primary:                 #0a0a0a;
+  --color-bg-primary-alt:             #171717;
+  --color-bg-primary-hover:           #262626;
+  --color-bg-secondary:               #171717;
+  --color-bg-secondary-hover:         #262626;
+  --color-bg-secondary-alt:           #262626;
+  --color-bg-tertiary:                #262626;
+  --color-bg-quaternary:              #404040;
+  --color-bg-active:                  #262626;
+
+  --color-fg-primary:                 #fafafa;
+  --color-fg-secondary:               #d4d4d4;
+  --color-fg-tertiary:                #a3a3a3;
+  --color-fg-quaternary:              #737373;
+
+  --color-border-primary:             #404040;
+  --color-border-secondary:           #262626;
+  --color-border-tertiary:            #171717;
+  --color-border-secondary-alt:       #ffffff1a;
+
+  --color-app-store-badge-border:     #ffffff;
+  --color-avatar-contrast-border:     #ffffff1f;
+  --color-featured-icon-light-fg-brand:   var(--color-brand-200);
+  --color-featured-icon-light-fg-error:   var(--color-error-200);
+  --color-featured-icon-light-fg-gray:    var(--color-neutral-200);
+  --color-featured-icon-light-fg-success: var(--color-success-200);
+  --color-featured-icon-light-fg-warning: var(--color-warning-200);
+  --color-slider-handle-bg:               var(--color-fg-brand-primary);
+  --color-slider-handle-border:           var(--color-bg-primary);
+  --color-toggle-border:                  var(--color-transparent);
+  --color-toggle-slim-border-pressed:     var(--color-transparent);
+  --color-toggle-slim-border-pressed-hover: var(--color-transparent);
+  --color-tooltip-supporting-text:        var(--color-neutral-300);
+}
+
+/* ============================================================================
+   TYPOGRAPHY UTILITY CLASSES
+   ============================================================================ */
+
+/* Display sizes */
+.text-display-2xl { font-family: var(--font-body); font-size: var(--text-display-2xl); line-height: var(--text-display-2xl--line-height); letter-spacing: var(--text-display-2xl--letter-spacing); }
+.text-display-xl  { font-family: var(--font-body); font-size: var(--text-display-xl);  line-height: var(--text-display-xl--line-height);  letter-spacing: var(--text-display-xl--letter-spacing); }
+.text-display-lg  { font-family: var(--font-body); font-size: var(--text-display-lg);  line-height: var(--text-display-lg--line-height);  letter-spacing: var(--text-display-lg--letter-spacing); }
+.text-display-md  { font-family: var(--font-body); font-size: var(--text-display-md);  line-height: var(--text-display-md--line-height);  letter-spacing: var(--text-display-md--letter-spacing); }
+.text-display-sm  { font-family: var(--font-body); font-size: var(--text-display-sm);  line-height: var(--text-display-sm--line-height);  letter-spacing: var(--text-display-sm--letter-spacing); }
+.text-display-xs  { font-family: var(--font-body); font-size: var(--text-display-xs);  line-height: var(--text-display-xs--line-height);  letter-spacing: var(--text-display-xs--letter-spacing); }
+
+/* Body sizes */
+.text-xl { font-family: var(--font-body); font-size: var(--text-xl); line-height: var(--text-xl--line-height); letter-spacing: var(--text-xl--letter-spacing); }
+.text-lg { font-family: var(--font-body); font-size: var(--text-lg); line-height: var(--text-lg--line-height); letter-spacing: var(--text-lg--letter-spacing); }
+.text-md { font-family: var(--font-body); font-size: var(--text-md); line-height: var(--text-md--line-height); letter-spacing: var(--text-md--letter-spacing); }
+.text-sm { font-family: var(--font-body); font-size: var(--text-sm); line-height: var(--text-sm--line-height); letter-spacing: var(--text-sm--letter-spacing); }
+.text-xs { font-family: var(--font-body); font-size: var(--text-xs); line-height: var(--text-xs--line-height); letter-spacing: var(--text-xs--letter-spacing); }
+
+/* Weights */
+.font-regular  { font-weight: var(--font-normal); }
+.font-medium   { font-weight: var(--font-medium); }
+.font-semibold { font-weight: var(--font-semibold); }
+.font-bold     { font-weight: var(--font-bold); }
+
+/* ============================================================================
+   GLOBAL ANIMATIONS
+   ============================================================================ */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes caret-blink {
+  0%, 70%, 100% { opacity: 1; }
+  20%, 50% { opacity: 0; }
+}
