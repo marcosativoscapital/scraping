@@ -83,6 +83,8 @@
     if (tab === 'events') loadEvents();
     if (tab === 'outbound') loadOutboundOptions();
     if (tab === 'settings') loadSettings();
+    if (tab === 'sdr') loadSDR();
+    if (tab === 'playbooks') loadPlaybooks();
   }
 
   // ====== HEALTH ======
@@ -492,6 +494,194 @@
       toast('CSV gerado', 'success');
     } catch (e) { toast(`Erro: ${e.message}`, 'error'); }
   });
+
+  // ====== SDR ======
+  function sdrEmail() {
+    return (document.getElementById('sdr-email')?.value || localStorage.getItem('sdrEmail') || '').trim();
+  }
+
+  document.getElementById('sdr-email').addEventListener('change', (e) => {
+    localStorage.setItem('sdrEmail', e.target.value.trim());
+    loadSDR();
+  });
+
+  document.getElementById('btn-auto-assign').addEventListener('click', async () => {
+    const email = sdrEmail();
+    if (!email) return toast('Informe seu e-mail', 'error');
+    try {
+      const data = await api(`/sdr/auto-assign?sdr_email=${encodeURIComponent(email)}&min_score=60&max_n=10`, { method: 'POST' });
+      toast(`${data.leads_atribuidos} leads atribuídos`, 'success');
+      loadSDR();
+    } catch (e) { toast(`Erro: ${e.message}`, 'error'); }
+  });
+
+  async function loadSDR() {
+    const email = sdrEmail();
+    document.getElementById('sdr-email').value = email;
+    if (!email) {
+      document.getElementById('sdr-queue').innerHTML = '<div class="empty">Informe seu e-mail acima e clique em auto-atribuir.</div>';
+      document.getElementById('sdr-metrics').innerHTML = '';
+      return;
+    }
+    try {
+      const [m, q] = await Promise.all([
+        api(`/sdr/metrics?sdr_email=${encodeURIComponent(email)}`),
+        api(`/sdr/queue?sdr_email=${encodeURIComponent(email)}`),
+      ]);
+
+      // Métricas
+      const acts = m.atividades_hoje || {};
+      const status = m.por_status || {};
+      document.getElementById('sdr-metrics').innerHTML = `
+        <div class="sdr-metric"><span class="sdr-metric__label">Atribuídos</span><span class="sdr-metric__value">${m.total_atribuidos || 0}</span></div>
+        <div class="sdr-metric"><span class="sdr-metric__label">A contatar</span><span class="sdr-metric__value">${status.a_contatar || 0}</span></div>
+        <div class="sdr-metric"><span class="sdr-metric__label">Contatados</span><span class="sdr-metric__value">${status.contatado || 0}</span></div>
+        <div class="sdr-metric"><span class="sdr-metric__label">Responderam</span><span class="sdr-metric__value">${status.respondeu || 0}</span></div>
+        <div class="sdr-metric"><span class="sdr-metric__label">Qualificados</span><span class="sdr-metric__value">${status.qualificado || 0}</span></div>
+        <div class="sdr-metric"><span class="sdr-metric__label">Toques hoje</span><span class="sdr-metric__value">${acts.toque_enviado || 0}</span></div>
+      `;
+
+      // Fila
+      const wrap = document.getElementById('sdr-queue');
+      if (!q.queue.length) {
+        wrap.innerHTML = '<div class="empty">Nenhum lead atribuído. Use auto-atribuir.</div>';
+        return;
+      }
+      wrap.innerHTML = q.queue.map((l) => renderSDRCard(l)).join('');
+      // Carrega playbooks de cada lead
+      q.queue.forEach((l) => loadPlaybooksForLead(l.id));
+      // Bind ações
+      bindSDRActions();
+    } catch (e) {
+      console.error(e);
+      toast(`Erro SDR: ${e.message}`, 'error');
+    }
+  }
+
+  function renderSDRCard(lead) {
+    const status = lead.sdr_status || 'a_contatar';
+    return `
+      <div class="sdr-card" data-lead-id="${lead.id}">
+        <div class="sdr-card__head">
+          <div>
+            <div class="sdr-card__title">${lead.empresa}</div>
+            <div class="sdr-card__sub">
+              <span class="badge badge--brand">${verticalLabel(lead.vertical)}</span>
+              <span class="${scoreClass(lead.score_icp)}">${lead.score_icp ?? '—'}</span>
+              <span class="sdr-status sdr-status--${status}">${status.replace(/_/g, ' ')}</span>
+              ${lead.email_provavel ? `<span class="muted">${lead.email_provavel}</span>` : ''}
+              ${lead.decisor_nome ? `<span class="muted">· ${lead.decisor_nome}</span>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="sdr-card__playbooks" id="pb-for-${lead.id}">
+          <div class="muted" style="font-size:12px;">Carregando playbooks...</div>
+        </div>
+        <div class="sdr-card__actions">
+          <button class="chip-btn act-touch" data-lead-id="${lead.id}" data-tipo="toque_enviado">📤 Toque enviado</button>
+          <button class="chip-btn act-touch" data-lead-id="${lead.id}" data-tipo="resposta_recebida">📬 Respondeu</button>
+          <button class="chip-btn act-touch" data-lead-id="${lead.id}" data-tipo="reuniao_agendada">📅 Reunião</button>
+          <button class="chip-btn act-touch" data-lead-id="${lead.id}" data-tipo="qualificado">✅ Qualificado</button>
+          <button class="chip-btn act-touch" data-lead-id="${lead.id}" data-tipo="descartado">❌ Descartar</button>
+          <button class="chip-btn act-regen" data-lead-id="${lead.id}">🔁 Re-gerar playbooks</button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadPlaybooksForLead(leadId) {
+    try {
+      const data = await api(`/leads/${leadId}/playbooks`);
+      const wrap = document.getElementById(`pb-for-${leadId}`);
+      if (!wrap) return;
+      if (!data.playbooks || !data.playbooks.length) {
+        wrap.innerHTML = '<div class="muted" style="font-size:12px;">Sem playbooks. Clique em re-gerar.</div>';
+        return;
+      }
+      wrap.innerHTML = data.playbooks.map((pb) => `
+        <div class="playbook-pill">
+          <div class="playbook-pill__ordem">${pb.ordem || '·'}</div>
+          <div class="playbook-pill__main">
+            <div class="playbook-pill__name">${pb.playbook_nome || pb.nome}</div>
+            <div style="font-size: 12px; color: var(--color-text-primary);">${pb.justificativa || pb.gatilho || ''}</div>
+            <div class="playbook-pill__meta">🎯 ${pb.sinal_detectado || pb.dor_alvo || ''}</div>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error('Falha ao carregar playbooks', leadId, e);
+    }
+  }
+
+  function bindSDRActions() {
+    document.querySelectorAll('.act-touch').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const email = sdrEmail();
+        if (!email) return toast('Informe seu e-mail', 'error');
+        const lead_id = parseInt(btn.dataset.leadId, 10);
+        const tipo = btn.dataset.tipo;
+        try {
+          await api('/sdr/activity', {
+            method: 'POST',
+            body: JSON.stringify({ lead_id, sdr_email: email, tipo }),
+          });
+          toast(`Registrado: ${tipo.replace(/_/g, ' ')}`, 'success');
+          loadSDR();
+        } catch (e) { toast(`Erro: ${e.message}`, 'error'); }
+      });
+    });
+    document.querySelectorAll('.act-regen').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const lead_id = parseInt(btn.dataset.leadId, 10);
+        toast('Re-gerando playbooks...');
+        try {
+          await api(`/leads/${lead_id}/playbooks/regenerate`, { method: 'POST' });
+          toast('Playbooks atualizados', 'success');
+          loadPlaybooksForLead(lead_id);
+        } catch (e) { toast(`Erro: ${e.message}`, 'error'); }
+      });
+    });
+  }
+
+  // ====== PLAYBOOKS (biblioteca) ======
+  async function loadPlaybooks() {
+    try {
+      const data = await api('/playbooks');
+      const grid = document.getElementById('playbooks-grid');
+      grid.innerHTML = (data.playbooks || []).map((p) => `
+        <div class="playbook-card">
+          <span class="playbook-card__categoria">${p.categoria}</span>
+          <div class="playbook-card__nome">${p.nome}</div>
+          <div class="playbook-card__gatilho">🎯 <strong>Gatilho:</strong> ${p.gatilho}</div>
+          <div class="playbook-card__dor"><strong>Dor:</strong> ${p.dor_alvo}</div>
+          <div class="playbook-card__dor"><strong>Decisor:</strong> ${p.decisor_primario}${p.decisor_secundario ? ` / ${p.decisor_secundario}` : ''}</div>
+          <div class="playbook-card__msg">${p.mensagem_central}</div>
+          <details style="margin-top:10px;">
+            <summary style="cursor:pointer; font-size:12px; color: var(--color-text-secondary);">Ver sequência (${p.sequencia?.length || 0} toques)</summary>
+            <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+              ${(p.sequencia || []).map((s) => `
+                <div style="border-left: 2px solid var(--color-border-brand); padding: 6px 10px; font-size: 12px;">
+                  <strong>${s.toque}. ${s.canal.toUpperCase()}</strong> (${s.timing})<br>
+                  <span style="color: var(--color-text-secondary);">${s.template_subject ? `Subject: ${s.template_subject}<br>` : ''}${s.template || s.template_body || ''}</span>
+                </div>
+              `).join('')}
+            </div>
+          </details>
+        </div>
+      `).join('');
+
+      const obj = document.getElementById('objecoes-list');
+      obj.innerHTML = (data.objecoes || []).map((o) => `
+        <div class="objecao-card">
+          <div class="objecao-card__titulo">"${o.titulo}"</div>
+          <div class="objecao-card__resposta">${o.resposta}</div>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error(e);
+      toast(`Erro: ${e.message}`, 'error');
+    }
+  }
 
   // ====== MODAL CLOSE ======
   document.getElementById('modal-close').addEventListener('click', closeModal);

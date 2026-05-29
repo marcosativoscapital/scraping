@@ -55,6 +55,14 @@
           <svg width="20" height="20"><use href="#i-send"/></svg>
           <span>Outbound</span>
         </button>
+        <button class="nav-item" data-tab="sdr">
+          <svg width="20" height="20"><use href="#i-zap"/></svg>
+          <span>SDR</span>
+        </button>
+        <button class="nav-item" data-tab="playbooks">
+          <svg width="20" height="20"><use href="#i-radar"/></svg>
+          <span>Playbooks</span>
+        </button>
         <button class="nav-item" data-tab="events">
           <svg width="20" height="20"><use href="#i-bell"/></svg>
           <span>Eventos</span>
@@ -267,6 +275,54 @@
               </button>
             </div>
             <div id="outbound-messages" class="outbound-messages"></div>
+          </div>
+        </section>
+
+        <!-- ============== SDR ============== -->
+        <section class="tab-panel" data-panel="sdr">
+          <div class="card">
+            <div class="card__head">
+              <h2>Painel do SDR</h2>
+              <p class="card__sub">Sua fila de prospecção com playbooks aplicáveis a cada lead.</p>
+            </div>
+            <div class="sdr-controls">
+              <div class="form-row">
+                <label class="filter-label">Seu e-mail (SDR)</label>
+                <input type="email" id="sdr-email" class="input" placeholder="voce@solvefy.com" />
+              </div>
+              <button class="btn btn--secondary" id="btn-auto-assign">
+                <svg width="16" height="16"><use href="#i-zap"/></svg>
+                Auto-atribuir 10 leads quentes (≥60)
+              </button>
+            </div>
+
+            <div class="sdr-metrics" id="sdr-metrics"></div>
+          </div>
+
+          <div class="card no-pad">
+            <div class="card__head" style="padding: 24px 24px 0;">
+              <h2>Sua fila</h2>
+            </div>
+            <div id="sdr-queue" class="sdr-queue"></div>
+          </div>
+        </section>
+
+        <!-- ============== PLAYBOOKS ============== -->
+        <section class="tab-panel" data-panel="playbooks">
+          <div class="card">
+            <div class="card__head">
+              <h2>Biblioteca de Playbooks</h2>
+              <p class="card__sub">10 abordagens estruturadas + tratamento de objeções.</p>
+            </div>
+            <div class="playbooks-grid" id="playbooks-grid"></div>
+          </div>
+
+          <div class="card">
+            <div class="card__head">
+              <h2>Tratamento de Objeções</h2>
+              <p class="card__sub">Respostas prontas pras 7 objeções mais comuns.</p>
+            </div>
+            <div class="objecoes-list" id="objecoes-list"></div>
           </div>
         </section>
 

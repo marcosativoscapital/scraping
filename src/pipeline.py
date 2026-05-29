@@ -16,14 +16,17 @@ from .claude_agent.client import ClaudeClient
 from .claude_agent.parser import extract_companies_from_html
 from .claude_agent.personalize import generate_trigger
 from .claude_agent.scorer import score_lead
+from .db.store import Store
 from .enrichers.brasil_api import enrich_with_cnpj
 from .enrichers.email_validator import validate_email
 from .enrichers.hunter import domain_from_site, find_email
+from .playbooks.selector import select_playbooks_for_lead
 from .scrapers.base import BaseScraper
 from .scrapers.bets_spa_mf import BetsSPAMFScraper
 from .scrapers.cobranca_ohub import CobrancaOHubScraper
 from .scrapers.ips_bacen import IPsBacenScraper
 from .scrapers.saas_abstartups import SaaSABStartupsScraper
+from .sdr.queue import SDRQueue
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -136,7 +139,24 @@ def run_pipeline(
                 except Exception as e:
                     logger.warning("Falha ao personalizar %s: %s", lead.get("empresa"), e)
 
+            # 3.6) Seleciona 2-3 playbooks de outbound aplicáveis (score >= 40)
+            if (lead.get("score_icp") or 0) >= 40:
+                try:
+                    playbooks = select_playbooks_for_lead(client, lead, n=3)
+                    lead["playbooks_sugeridos"] = playbooks
+                except Exception as e:
+                    logger.warning("Falha ao selecionar playbooks %s: %s", lead.get("empresa"), e)
+
             leads_vert.append(lead)
+
+        # 4) Persiste no DB + playbooks vinculados
+        store = Store()
+        sdr_queue = SDRQueue(store)
+        for lead in leads_vert:
+            lead_id = store.upsert_lead(lead)
+            pbs = lead.get("playbooks_sugeridos") or []
+            if pbs:
+                sdr_queue.assign_playbooks(lead_id, pbs)
 
         todos_leads.extend(leads_vert)
         console.print(

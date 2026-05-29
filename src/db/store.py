@@ -71,7 +71,50 @@ CREATE TABLE IF NOT EXISTS events (
     criado_em TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_events_tipo ON events(tipo, criado_em);
+
+CREATE TABLE IF NOT EXISTS lead_playbooks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id INTEGER NOT NULL,
+    playbook_id TEXT NOT NULL,
+    playbook_nome TEXT,
+    categoria TEXT,
+    ordem INTEGER DEFAULT 99,
+    justificativa TEXT,
+    sinal_detectado TEXT,
+    status TEXT DEFAULT 'sugerido',             -- sugerido | em_execucao | concluido | abandonado
+    criado_em TEXT NOT NULL,
+    atualizado_em TEXT,
+    FOREIGN KEY (lead_id) REFERENCES leads(id),
+    UNIQUE(lead_id, playbook_id)
+);
+CREATE INDEX IF NOT EXISTS idx_pb_lead ON lead_playbooks(lead_id);
+CREATE INDEX IF NOT EXISTS idx_pb_status ON lead_playbooks(status);
+
+CREATE TABLE IF NOT EXISTS sdr_activities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id INTEGER NOT NULL,
+    sdr_email TEXT NOT NULL,
+    tipo TEXT NOT NULL,                         -- toque_enviado | resposta_recebida | reuniao_agendada | qualificado | descartado
+    canal TEXT,                                 -- linkedin | email | sms | whatsapp | voz
+    playbook_id TEXT,
+    outcome TEXT,                               -- positivo | neutro | negativo | objecao | sem_resposta
+    notas TEXT,
+    criado_em TEXT NOT NULL,
+    FOREIGN KEY (lead_id) REFERENCES leads(id)
+);
+CREATE INDEX IF NOT EXISTS idx_act_lead ON sdr_activities(lead_id);
+CREATE INDEX IF NOT EXISTS idx_act_sdr ON sdr_activities(sdr_email, criado_em);
+
+-- Colunas adicionais em leads (atribuição + status SDR)
 """
+
+# Migrations idempotentes para colunas adicionais (ALTER TABLE)
+LEAD_MIGRATIONS = [
+    ("sdr_assigned", "TEXT"),
+    ("sdr_assigned_at", "TEXT"),
+    ("sdr_status", "TEXT DEFAULT 'a_contatar'"),  # a_contatar | contatado | respondeu | qualificado | descartado | reuniao_agendada
+    ("sdr_status_at", "TEXT"),
+]
 
 
 class Store:
@@ -95,6 +138,11 @@ class Store:
     def _init_schema(self) -> None:
         with self.conn() as c:
             c.executescript(SCHEMA)
+            # Migrations idempotentes para colunas adicionais
+            existing = {r["name"] for r in c.execute("PRAGMA table_info(leads)").fetchall()}
+            for col, ddl in LEAD_MIGRATIONS:
+                if col not in existing:
+                    c.execute(f"ALTER TABLE leads ADD COLUMN {col} {ddl}")
 
     # ====== Snapshots ======
 

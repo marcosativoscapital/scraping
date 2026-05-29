@@ -32,7 +32,11 @@ from ..jobs.scheduler import Scheduler
 from ..outbound.orchestrator import generate_and_store
 from ..output.csv_writer import write_leads_csv
 from ..pipeline import run_pipeline
+from ..playbooks.library import get_library
+from ..playbooks.selector import select_playbooks_for_lead
 from ..scrapers.linkedin import parse_linkedin_payload
+from ..sdr.queue import SDRQueue
+from ..claude_agent.client import GeminiClient
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -62,6 +66,7 @@ app.add_middleware(
 JOBS: dict[str, dict[str, Any]] = {}
 STORE = Store()
 SCHED = Scheduler()
+SDR = SDRQueue(STORE)
 
 
 # ====== AUTH ======
@@ -389,6 +394,129 @@ def intercom_push_batch(
     result = push_batch(leads)
     STORE.log_event("intercom_batch", result)
     return result
+
+
+# ====== PLAYBOOKS ======
+@app.get("/playbooks")
+def list_playbooks(x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    lib = get_library()
+    return {
+        "playbooks": [p.as_dict() for p in lib.all()],
+        "objecoes": [{"id": o.id, "titulo": o.titulo, "resposta": o.resposta} for o in lib.objecoes],
+    }
+
+
+@app.get("/leads/{lead_id}/playbooks")
+def lead_playbooks(lead_id: int, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    pbs = SDR.playbooks_for_lead(lead_id)
+    lib = get_library()
+    enriched = []
+    for pb in pbs:
+        full = lib.get(pb.get("playbook_id"))
+        if full:
+            d = full.as_dict()
+            d.update(pb)
+            enriched.append(d)
+        else:
+            enriched.append(pb)
+    return {"lead_id": lead_id, "playbooks": enriched}
+
+
+@app.post("/leads/{lead_id}/playbooks/regenerate")
+def regenerate_playbooks(lead_id: int, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    with STORE.conn() as c:
+        row = c.execute("SELECT * FROM leads WHERE id=?", (lead_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Lead não encontrado")
+    lead = dict(row)
+    try:
+        pbs = select_playbooks_for_lead(GeminiClient(), lead, n=3)
+        SDR.assign_playbooks(lead_id, pbs)
+        return {"ok": True, "playbooks": pbs}
+    except Exception as e:
+        logger.exception("Falha ao regenerar playbooks: %s", e)
+        raise HTTPException(500, str(e))
+
+
+@app.post("/leads/{lead_id}/playbooks/{playbook_id}/status")
+def set_playbook_status(
+    lead_id: int,
+    playbook_id: str,
+    status: str = Query(..., description="sugerido|em_execucao|concluido|abandonado"),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    SDR.update_playbook_status(lead_id, playbook_id, status)
+    return {"ok": True}
+
+
+# ====== SDR ======
+@app.get("/sdr/queue")
+def sdr_queue(
+    sdr_email: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    return {"queue": SDR.queue_for(sdr_email=sdr_email, status=status)}
+
+
+@app.post("/sdr/assign")
+def sdr_assign(
+    lead_id: int = Query(...),
+    sdr_email: str = Query(...),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    SDR.assign_lead(lead_id, sdr_email)
+    return {"ok": True}
+
+
+@app.post("/sdr/auto-assign")
+def sdr_auto_assign(
+    sdr_email: str = Query(...),
+    min_score: int = Query(default=60),
+    max_n: int = Query(default=20),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    n = SDR.auto_assign_hot_leads(sdr_email, min_score=min_score, max_n=max_n)
+    return {"ok": True, "leads_atribuidos": n}
+
+
+class ActivityPayload(BaseModel):
+    lead_id: int
+    sdr_email: str
+    tipo: str
+    canal: Optional[str] = None
+    playbook_id: Optional[str] = None
+    outcome: Optional[str] = None
+    notas: Optional[str] = None
+
+
+@app.post("/sdr/activity")
+def sdr_log_activity(payload: ActivityPayload, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    aid = SDR.log_activity(**payload.model_dump())
+    return {"ok": True, "activity_id": aid}
+
+
+@app.get("/sdr/activities/{lead_id}")
+def sdr_activities(lead_id: int, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    return {"activities": SDR.activities_for_lead(lead_id)}
+
+
+@app.get("/sdr/metrics")
+def sdr_metrics(
+    sdr_email: Optional[str] = Query(default=None),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    return SDR.metrics(sdr_email=sdr_email)
 
 
 def start():

@@ -1,0 +1,311 @@
+# ===========================================================
+# BIBLIOTECA DE PLAYBOOKS DE OUTBOUND — Solvefy CPaaS
+# ===========================================================
+# Cada playbook é uma abordagem completa: gatilho, dor, decisor-alvo,
+# mensagem central e sequência multicanal.
+# O selector Gemini escolhe 2-3 playbooks por lead.
+# ===========================================================
+
+playbooks:
+
+  - id: "wpp_banimento"
+    nome: "Onda de banimento WhatsApp não-oficial"
+    categoria: "risco_juridico"
+    gatilho: "Empresa usa/usou API não-oficial do WhatsApp e teme banimento da Meta"
+    sinais_para_aplicar:
+      - "Histórico de banimento por API pirata"
+      - "Usa WhatsApp em volume sem ser BSP oficial"
+      - "Vertical com pressão regulatória"
+    decisor_primario: "Tech Lead / CTO"
+    decisor_secundario: "Head of Marketing"
+    dor_alvo: "Risco de perder base de contatos da noite pro dia"
+    mensagem_central: "Onda de banimentos da Meta intensificou em 2025-2026. Solvefy é Tech Provider via Cloud API com Embedded Signup oficial — migração em 1 dia útil, zero risco."
+    sequencia:
+      - canal: "linkedin"
+        toque: 1
+        timing: "dia 1"
+        template: "Vi que [empresa] roda WhatsApp Business. Com a onda de banimentos da Meta em 2026, vocês já têm plano de migração para o Cloud API oficial? Posso compartilhar o caminho que outras [vertical] estão tomando."
+      - canal: "email"
+        toque: 2
+        timing: "dia 3 (se sem resposta)"
+        template_subject: "Migração WhatsApp oficial em 1 dia útil"
+        template_body: "Olá [nome], o cenário do WhatsApp Business mudou: a Meta intensificou banimentos de APIs não-oficiais em 2025-2026. A Solvefy CPaaS é Tech Provider via Cloud API com Embedded Signup, fatura BRL e contrato em PT. Migração tipicamente roda em 1 dia útil. Faz sentido uma conversa de 15 min essa semana?"
+      - canal: "linkedin"
+        toque: 3
+        timing: "dia 7"
+        template: "[nome], deixei um e-mail sobre migração WhatsApp oficial. Pra ficar fácil: somos pipe ANATEL com 20 anos, fatura em BRL, suporte humano PT-BR. Quer uma demo de 15 min?"
+
+  - id: "cambial_usd"
+    nome: "CFO cansado do dólar"
+    categoria: "previsibilidade_financeira"
+    gatilho: "Empresa paga vendor global em USD (Twilio, Sinch, Infobip)"
+    sinais_para_aplicar:
+      - "Setor financeiro veta ferramentas em USD"
+      - "Já operou com Twilio/Sinch/Infobip"
+      - "Porte mid-market com CFO ativo"
+    decisor_primario: "CFO / Head Ops"
+    decisor_secundario: "Tech Lead / CTO"
+    dor_alvo: "Variação cambial + IOF inflam 40-70% do custo anunciado. Forecast inviável."
+    mensagem_central: "Pricing em BRL, sem IOF, sem variação cambial. Forecast de 12 meses fechado. Mesmo escopo do Twilio com fatura em real."
+    sequencia:
+      - canal: "linkedin"
+        toque: 1
+        timing: "dia 1"
+        template: "[nome], rapidamente: vocês conseguem fechar forecast de 12 meses do Twilio sem chutar câmbio? Boa parte das [vertical] BR está migrando pra Solvefy CPaaS em BRL — mesmo escopo, fatura em real."
+      - canal: "email"
+        toque: 2
+        timing: "dia 4"
+        template_subject: "Forecast 12 meses do Twilio em BRL"
+        template_body: "Olá [nome], o custo real do Twilio em BRL costuma vir 40-70% acima do preço anunciado por causa de IOF + câmbio + repasse mensal. A Solvefy CPaaS atende SMS + WhatsApp + RCS + Voz + E-mail com a mesma robustez técnica, pricing em BRL, contrato sob lei brasileira. Posso enviar uma comparação real de custo entre Twilio e Solvefy pra [empresa]?"
+      - canal: "linkedin"
+        toque: 3
+        timing: "dia 8"
+        template: "[nome], se quiser comparar números reais Twilio vs. Solvefy em BRL pra [empresa], me chama no inbox. 5 min."
+
+  - id: "rcs_ios"
+    nome: "RCS chegou ao iOS"
+    categoria: "novo_canal"
+    gatilho: "RCS bateu maturidade no iOS (iOS 26.5, Vivo + TIM com E2E)"
+    sinais_para_aplicar:
+      - "Empresa investe em mensageria"
+      - "Operação multicanal ativa"
+      - "Vertical com competição em engajamento"
+    decisor_primario: "Head of Marketing / Growth"
+    decisor_secundario: "Tech Lead"
+    dor_alvo: "Concorrentes entregando mensagens ricas com botão/carrossel — campanha sem RCS perde engajamento."
+    mensagem_central: "RCS bateu maturidade no iOS em maio/2026. Solvefy tem fallback RCS→SMS nativo, único no Brasil. 185 milhões de dispositivos compatíveis."
+    sequencia:
+      - canal: "linkedin"
+        toque: 1
+        timing: "dia 1"
+        template: "[nome], RCS bateu maturidade no iOS — TIM e Vivo com criptografia E2E desde maio/2026. Vocês de [empresa] já testaram RCS para [caso_uso_vertical]? Engajamento subindo 3x vs SMS puro nos primeiros casos."
+      - canal: "email"
+        toque: 2
+        timing: "dia 4"
+        template_subject: "RCS no iOS: 185 mi dispositivos a partir de já"
+        template_body: "Olá [nome], com TIM/Vivo/Claro habilitando RCS no iOS em 2026, abriu uma janela: ~185 mi de dispositivos podem receber mensagens ricas (botão, carrossel, mídia). A Solvefy CPaaS é a única no BR com fallback RCS→SMS nativo — você dispara RCS, e se o destino não tem, vai SMS automaticamente, sem código. Quer ver uma demo?"
+      - canal: "linkedin"
+        toque: 3
+        timing: "dia 8"
+        template: "[nome], se quiser ver o fallback RCS→SMS rodando ao vivo, separo 15 min essa semana. Dá pra testar com a base de [empresa]."
+
+  - id: "fragmentacao_vendors"
+    nome: "4+ vendors viraram dívida técnica"
+    categoria: "fragmentacao"
+    gatilho: "Empresa mantém 4+ vendors separados pra SMS, WhatsApp, Voz, E-mail"
+    sinais_para_aplicar:
+      - "Investe em RD Station / HubSpot / ERPs"
+      - "Tem dev dedicado"
+      - "Produz campanhas com cadência semanal/mensal"
+      - "Operação multicanal madura"
+    decisor_primario: "Tech Lead / CTO"
+    decisor_secundario: "Head Ops"
+    dor_alvo: "8-15h/semana conciliando faturas + cada canal novo = 40-80h de dev"
+    mensagem_central: "5 canais (SMS, WhatsApp, RCS, Voz, E-mail) em uma única API REST. Substituir 4 integrações por uma só, com SLA único e fatura única em BRL."
+    sequencia:
+      - canal: "linkedin"
+        toque: 1
+        timing: "dia 1"
+        template: "[nome], quantas horas o time gasta por semana entre Twilio, Zenvia, SendGrid e provedor de Voz em [empresa]? Solvefy faz os 5 canais (SMS/WhatsApp/RCS/Voz/E-mail) com endpoint único + fatura única."
+      - canal: "email"
+        toque: 2
+        timing: "dia 4"
+        template_subject: "Substituindo 4 vendors por 1 API"
+        template_body: "Olá [nome], integrar um canal novo geralmente toma 40-80h de dev + R$ 10-20k. Manter 4 vendors consome 8-15h/sem só em conciliação. A Solvefy CPaaS é uma única API REST para SMS, WhatsApp, RCS, Voz e E-mail, com fallback RCS→SMS nativo e webhook normalizado. Onboarding em 1 dia útil. Quer ver a documentação Postman?"
+      - canal: "linkedin"
+        toque: 3
+        timing: "dia 8"
+        template: "[nome], se quiser ver o Postman Collection pública pra avaliar a API, te mando link. 5 min de leitura."
+
+  - id: "compliance_bacen_lgpd"
+    nome: "Compliance LGPD + Bacen centralizado"
+    categoria: "compliance"
+    gatilho: "Instituição financeira regulada com auditoria LGPD/Bacen"
+    sinais_para_aplicar:
+      - "Empresa é IP, BSP, banco, fintech regulada"
+      - "Decisor é Compliance Officer ou CTO regulado"
+    decisor_primario: "Compliance Officer"
+    decisor_secundario: "CTO / Head Tech"
+    dor_alvo: "Auditoria LGPD em 4 vendors diferentes — sem responsável único"
+    mensagem_central: "Compliance LGPD centralizado em um único fornecedor. Arquitetura LGPD-first, não checklist. SLA único quando regulador pede."
+    sequencia:
+      - canal: "linkedin"
+        toque: 1
+        timing: "dia 1"
+        template: "[nome], pergunta direta: na auditoria LGPD de [empresa], com quantos vendors de comunicação você tem que cruzar dados? Solvefy CPaaS centraliza em uma plataforma só."
+      - canal: "email"
+        toque: 2
+        timing: "dia 4"
+        template_subject: "LGPD: 4 vendors viram 1 responsável"
+        template_body: "Olá [nome], pra instituições reguladas, LGPD virou critério eliminatório em compra. A Solvefy CPaaS foi desenhada LGPD-first (não checklist): isolamento de dados por tenant, auditoria nativa, SLA único e contrato sob lei brasileira. Em vez de 4 DPAs com vendors globais, você tem 1 só. Faz sentido conversar 15 min?"
+      - canal: "linkedin"
+        toque: 3
+        timing: "dia 8"
+        template: "[nome], se quiser ver o DPA modelo Solvefy ou a doc de arquitetura LGPD, te envio. Tudo em PT."
+
+  - id: "zenvia_saida"
+    nome: "Zenvia avalia sair do CPaaS"
+    categoria: "concorrente_instavel"
+    gatilho: "Empresa é cliente Zenvia ou usa CPaaS deles"
+    sinais_para_aplicar:
+      - "Já mencionou Zenvia como vendor"
+      - "Migração esperada por instabilidade estratégica"
+    decisor_primario: "Tech Lead / CTO"
+    decisor_secundario: "Head Ops"
+    dor_alvo: "Risco de ficar sem vendor CPaaS — Zenvia avalia virar SaaS pure-play (Brazil Journal 2025)"
+    mensagem_central: "Estabilidade estratégica: nosso negócio É CPaaS, ponto. Não vamos sair do jogo. Estamos preparados pra absorver clientes Zenvia com migração assistida."
+    sequencia:
+      - canal: "linkedin"
+        toque: 1
+        timing: "dia 1"
+        template: "[nome], vi que [empresa] roda comunicação via Zenvia. Acompanha o movimento deles avaliando sair do CPaaS pra virar SaaS? Brazil Journal apontou Twilio como comprador óbvio. Pode valer ter um plano B."
+      - canal: "email"
+        toque: 2
+        timing: "dia 4"
+        template_subject: "Plano B caso Zenvia saia do CPaaS"
+        template_body: "Olá [nome], a Zenvia divulgou avaliação de saída do CPaaS pra virar SaaS pure-play. Independente do desfecho, pode valer ter um plano B com vendor focado em CPaaS. A Solvefy é CPaaS dedicado, pricing BRL, suporte PT-BR. Posso enviar um comparativo Zenvia vs Solvefy?"
+      - canal: "linkedin"
+        toque: 3
+        timing: "dia 8"
+        template: "[nome], se for útil, faço um diagnóstico rápido da operação Zenvia atual de [empresa] e mostro o que mudaria com Solvefy. 20 min."
+
+  - id: "otp_pico_betting"
+    nome: "OTP em pico de jogo (Betting)"
+    categoria: "vertical_betting"
+    gatilho: "Bet autorizada SPA/MF com volume massivo em jogos decisivos"
+    sinais_para_aplicar:
+      - "Vertical betting"
+      - "Empresa licenciada recentemente"
+      - "Lançamento de produto novo"
+    decisor_primario: "Head of Product / CTO"
+    decisor_secundario: "Head CRM / Marketing"
+    dor_alvo: "Em final de campeonato, OTP atrasa e usuário abandona depósito"
+    mensagem_central: "Pipe ANATEL com 20 anos, 99% entrega em pico. Aguenta final de campeonato, lançamento de promoção, qualquer pico real."
+    sequencia:
+      - canal: "linkedin"
+        toque: 1
+        timing: "dia 1"
+        template: "[nome], pra [empresa] em final de campeonato/clássico: qual sua taxa de entrega de OTP em pico de 100k req/s? Solvefy aguenta isso via pipe ANATEL com 20 anos."
+      - canal: "email"
+        toque: 2
+        timing: "dia 4"
+        template_subject: "OTP em final de Brasileirão"
+        template_body: "Olá [nome], pra casa de aposta licenciada SPA/MF, OTP que atrasa em final de campeonato custa em depósito perdido. A Solvefy CPaaS roda pipe ANATEL com 20 anos, 10 bilhões de SMS enviados, suporte humano em PT-BR em pico. Vale uma conversa antes do próximo grande jogo?"
+      - canal: "sms"
+        toque: 3
+        timing: "dia 8 (se ainda sem resposta)"
+        template: "[nome], se quiser teste com 10k SMS grátis pra avaliar a entrega real da Solvefy em pico, me chama. SMS direto."
+
+  - id: "regua_cobranca"
+    nome: "Régua de cobrança automatizada multicanal"
+    categoria: "vertical_cobranca"
+    gatilho: "Empresa de cobrança/recuperação com régua digital ativa"
+    sinais_para_aplicar:
+      - "Vertical cobrança"
+      - "Volume massivo de SMS/dia"
+    decisor_primario: "Head Ops / COO"
+    decisor_secundario: "Diretor de Cobrança"
+    dor_alvo: "Régua multicanal cara, com múltiplos vendors e sem dashboard único de taxa de resposta"
+    mensagem_central: "Régua de cobrança em SMS + WhatsApp + Voz no mesmo endpoint, 98% entrega no SMS, 20% mais barato que mercado."
+    sequencia:
+      - canal: "linkedin"
+        toque: 1
+        timing: "dia 1"
+        template: "[nome], qual a taxa de resposta atual da régua de [empresa] em SMS? E quantos vendors estão por trás de SMS + WhatsApp + Voz hoje? Solvefy unifica os 3 com 20% menos custo."
+      - canal: "email"
+        toque: 2
+        timing: "dia 4"
+        template_subject: "Régua de cobrança SMS+WhatsApp+Voz unificada"
+        template_body: "Olá [nome], pra assessoria de cobrança, gerenciar 3-4 vendors por canal de comunicação consome tempo e dinheiro. A Solvefy CPaaS faz SMS (98% entrega), WhatsApp (Meta oficial), Voz (TTS + IVR) pelo mesmo endpoint, com dashboard único de entrega/leitura/conversão. 20% mais barato que mercado. Integramos com seus discadores em dias."
+      - canal: "linkedin"
+        toque: 3
+        timing: "dia 8"
+        template: "[nome], se quiser comparar custo unitário SMS na régua atual vs Solvefy, te mando uma planilha de comparação. 5 min."
+
+  - id: "api_multitenant_saas"
+    nome: "API multi-tenant pra SaaS embutir comunicação"
+    categoria: "vertical_saas"
+    gatilho: "SaaS B2B/B2B2C que precisa enviar comunicação pelo produto"
+    sinais_para_aplicar:
+      - "Vertical saas_b2b"
+      - "Empresa com produto digital próprio"
+      - "API exposta ou plataforma multi-cliente"
+    decisor_primario: "CTO / Head Engineering"
+    decisor_secundario: "Head of Product"
+    dor_alvo: "Virar telecom ao tentar embedar comunicação no produto. Custo escalável em USD."
+    mensagem_central: "API CPaaS multi-tenant pra você embutir SMS/WhatsApp/RCS/Voz/E-mail no seu produto sem virar telecom. Pricing BRL escalável."
+    sequencia:
+      - canal: "linkedin"
+        toque: 1
+        timing: "dia 1"
+        template: "[nome], rápida: [empresa] embute comunicação no produto? Solvefy CPaaS tem API multi-tenant pensada pra ISVs — você expõe SMS/WhatsApp aos seus clientes finais com billing isolado."
+      - canal: "email"
+        toque: 2
+        timing: "dia 4"
+        template_subject: "API multi-tenant pra ISV"
+        template_body: "Olá [nome], pra SaaS que precisa embutir comunicação no produto, costuma haver dois caminhos: (1) virar telecom (caro), (2) revender Twilio em USD (margem ruim). A Solvefy CPaaS tem API multi-tenant com sub-contas, billing isolado por cliente final e pricing BRL. Suporte humano em PT-BR. Posso te mostrar o modelo de revenda?"
+      - canal: "linkedin"
+        toque: 3
+        timing: "dia 8"
+        template: "[nome], se quiser ver doc de multi-tenancy e modelo de partner program, te envio. Vale uma conversa rápida."
+
+  - id: "funding_fresh"
+    nome: "Funding recente — pressão de escala"
+    categoria: "gatilho_evento"
+    gatilho: "Empresa anunciou Série A, B ou funding recente"
+    sinais_para_aplicar:
+      - "Funding recente (notícia, post LinkedIn)"
+      - "Expansão de operação anunciada"
+      - "Vagas abertas em platform engineering"
+    decisor_primario: "CTO / VP Engineering"
+    decisor_secundario: "Head of Growth"
+    dor_alvo: "Pressão pra escalar — comunicação vira bottleneck"
+    mensagem_central: "Você acabou de levantar [Série]. Como pretendem escalar comunicação? Solvefy entrega multicanal em 1 dia útil."
+    sequencia:
+      - canal: "linkedin"
+        toque: 1
+        timing: "dia 1"
+        template: "[nome], parabéns pela rodada de [empresa]. Curiosidade técnica: como vão escalar comunicação pros novos clientes? Solvefy entrega 5 canais via API única em 1 dia útil, pricing BRL."
+      - canal: "email"
+        toque: 2
+        timing: "dia 4"
+        template_subject: "Pós-funding: stack de comunicação que escala"
+        template_body: "Olá [nome], pós-funding, comunicação costuma virar bottleneck em SaaS que escala rápido. A Solvefy CPaaS é uma API REST para SMS + WhatsApp + RCS + Voz + E-mail, com SLA único, fatura BRL e suporte humano. Integração em 1 dia útil. Faz sentido conversar enquanto vocês ainda estão definindo o stack?"
+      - canal: "linkedin"
+        toque: 3
+        timing: "dia 8"
+        template: "[nome], se quiser ver o que outras [vertical] pós-funding estão usando, te mando 2 casos rápidos."
+
+# ===========================================================
+# TEMPLATES DE RESPOSTA A OBJEÇÕES (uso direto pelo SDR)
+# ===========================================================
+
+objecoes:
+
+  ja_temos_solucao:
+    titulo: "Já temos uma solução"
+    resposta: "Entendo. Posso entender qual é? Pergunto porque comparar custo real em BRL vs USD costuma surpreender o time financeiro. Se já estiver tudo redondo, te poupo o tempo."
+
+  dev_ocupado:
+    titulo: "Dev está ocupado"
+    resposta: "Justamente — Solvefy não exige projeto de 2 semanas. Sandbox + Postman + integração em 1 dia útil. Quer que eu mande a documentação pro seu dev avaliar quando tiver 30 min?"
+
+  cfo_bloqueou:
+    titulo: "CFO bloqueou novas SaaS"
+    resposta: "Faz sentido. Geralmente o que destrava com o CFO é fatura única em BRL, contrato em PT e forecast 12 meses fechado. Posso te mandar um one-pager pra ele?"
+
+  ja_ouvimos_prometer:
+    titulo: "Já ouvimos plataformas prometerem"
+    resposta: "Justo. Em vez de pedir confiança, posso te mandar acesso a sandbox e cases reais — você testa do seu lado, sem signed deal. Faz sentido?"
+
+  api_pirata_funciona:
+    titulo: "API não-oficial está funcionando"
+    resposta: "Acompanhamos o cenário — Meta intensificou banimentos em 2025/2026. Empresas perderam base inteira da noite pro dia. Vale ter pelo menos um plano B mapeado, mesmo que não migre agora."
+
+  sem_dev_agora:
+    titulo: "Sem dev disponível agora"
+    resposta: "Sem problema. Posso te mostrar o dashboard que roda 100% sem precisar de integração — Marketing já dispara campanha multicanal sem TI. Quer ver?"
+
+  precisa_validar_roi:
+    titulo: "Precisa validar ROI"
+    resposta: "Razoável. O que costuma destravar é calcular: (a) horas/semana economizadas em conciliação + (b) economia direta em câmbio se vier do Twilio. Posso te mandar um modelo de cálculo?"
