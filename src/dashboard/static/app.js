@@ -646,6 +646,7 @@
   // ====== PLAYBOOKS (biblioteca visual) ======
   let _allPlaybooks = [];
   let _currentCategoria = 'all';
+  const _tplStore = new Map();  // armazena templates por id (evita escaping no HTML)
 
   const CANAL_ICONS = {
     linkedin: '💼 LinkedIn',
@@ -655,40 +656,52 @@
     voz: '📞 Voz',
   };
 
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function renderPlaybook(p) {
     const seq = p.sequencia || [];
+    const sinais = (p.sinais_para_aplicar || []).slice(0, 3)
+      .map((s) => `<span class="badge" style="margin-right:4px;">${escapeHtml(s)}</span>`).join('');
     return `
-      <article class="pb" data-categoria="${p.categoria}" data-id="${p.id}">
+      <article class="pb" data-categoria="${escapeHtml(p.categoria)}" data-id="${escapeHtml(p.id)}">
         <header class="pb__head">
-          <span class="pb__cat">${p.categoria.replace(/_/g, ' ')}</span>
-          <h3 class="pb__nome">${p.nome}</h3>
-          <p class="pb__gatilho">🎯 ${p.gatilho}</p>
+          <span class="pb__cat">${escapeHtml(p.categoria.replace(/_/g, ' '))}</span>
+          <h3 class="pb__nome">${escapeHtml(p.nome)}</h3>
+          <p class="pb__gatilho">🎯 ${escapeHtml(p.gatilho)}</p>
         </header>
         <div class="pb__body">
           <div class="pb__row">
             <span class="pb__row-icon">🔥</span>
             <div class="pb__row-content">
               <span class="pb__row-label">Dor-alvo</span>
-              <div class="pb__row-value">${p.dor_alvo}</div>
+              <div class="pb__row-value">${escapeHtml(p.dor_alvo)}</div>
             </div>
           </div>
           <div class="pb__row">
             <span class="pb__row-icon">👤</span>
             <div class="pb__row-content">
               <span class="pb__row-label">Decisor</span>
-              <div class="pb__row-value">${p.decisor_primario}${p.decisor_secundario ? ` &middot; <span class="muted">${p.decisor_secundario}</span>` : ''}</div>
+              <div class="pb__row-value">${escapeHtml(p.decisor_primario || '')}${p.decisor_secundario ? ` &middot; <span class="muted">${escapeHtml(p.decisor_secundario)}</span>` : ''}</div>
             </div>
           </div>
           <div class="pb__row">
             <span class="pb__row-icon">📡</span>
             <div class="pb__row-content">
               <span class="pb__row-label">Sinais para aplicar</span>
-              <div class="pb__row-value">${(p.sinais_para_aplicar || []).slice(0, 3).map((s) => `<span class="badge" style="margin-right:4px;">${s}</span>`).join('')}</div>
+              <div class="pb__row-value">${sinais}</div>
             </div>
           </div>
-          <div class="pb__mensagem">${p.mensagem_central}</div>
+          <div class="pb__mensagem">${escapeHtml(p.mensagem_central)}</div>
 
-          <div class="pb__trail-head" onclick="this.closest('.pb').classList.toggle('is-open')">
+          <div class="pb__trail-head" data-toggle-pb="${escapeHtml(p.id)}">
             <h4>🧭 Trilha de outbound</h4>
             <span class="pb__trail-head__count">${seq.length} ${seq.length === 1 ? 'toque' : 'toques'} <span class="pb__trail-toggle">⌄</span></span>
           </div>
@@ -701,21 +714,22 @@
   }
 
   function renderTouch(pbId, t, idx) {
-    const canal = CANAL_ICONS[t.canal] || t.canal;
+    const canal = CANAL_ICONS[t.canal] || (t.canal || '').toUpperCase();
+    const tplKey = `${pbId}__${idx}`;
     const tplFull = (t.template_subject ? `Assunto: ${t.template_subject}\n\n` : '') + (t.template || t.template_body || '');
-    const tplEsc = tplFull.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    _tplStore.set(tplKey, tplFull);
     return `
       <div class="pb__touch">
-        <div class="pb__touch-num">${t.toque || idx + 1}</div>
+        <div class="pb__touch-num">${escapeHtml(String(t.toque || idx + 1))}</div>
         <div class="pb__touch-body">
           <div class="pb__touch-meta">
-            <span class="pb__touch-canal">${canal}</span>
-            <span class="pb__touch-timing">⏰ ${t.timing || ''}</span>
+            <span class="pb__touch-canal">${escapeHtml(canal)}</span>
+            <span class="pb__touch-timing">⏰ ${escapeHtml(t.timing || '')}</span>
           </div>
-          ${t.template_subject ? `<div class="pb__touch-subject">📧 ${t.template_subject}</div>` : ''}
-          <div class="pb__touch-body-text">${t.template || t.template_body || ''}</div>
+          ${t.template_subject ? `<div class="pb__touch-subject">📧 ${escapeHtml(t.template_subject)}</div>` : ''}
+          <div class="pb__touch-body-text">${escapeHtml(t.template || t.template_body || '')}</div>
           <div class="pb__touch-actions">
-            <button class="pb__copy-btn" data-tpl="${tplEsc}">📋 Copiar template</button>
+            <button class="pb__copy-btn" data-tpl-key="${escapeHtml(tplKey)}">📋 Copiar template</button>
           </div>
         </div>
       </div>
@@ -723,23 +737,31 @@
   }
 
   function bindPlaybookEvents() {
+    // Toggle trilha
+    document.querySelectorAll('[data-toggle-pb]').forEach((el) => {
+      el.addEventListener('click', () => {
+        el.closest('.pb').classList.toggle('is-open');
+      });
+    });
+    // Copiar templates
     document.querySelectorAll('.pb__copy-btn').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const text = btn.dataset.tpl;
+        const key = btn.dataset.tplKey;
+        const text = key ? _tplStore.get(key) : (btn.dataset.tpl || '');
+        const orig = btn.textContent;
         try {
-          await navigator.clipboard.writeText(text);
+          await navigator.clipboard.writeText(text || '');
           btn.classList.add('is-copied');
           btn.textContent = '✓ Copiado!';
-          setTimeout(() => {
-            btn.classList.remove('is-copied');
-            btn.textContent = '📋 Copiar template';
-          }, 1800);
+          setTimeout(() => { btn.classList.remove('is-copied'); btn.textContent = orig; }, 1800);
         } catch (e2) {
-          toast('Não consegui copiar', 'error');
+          console.error('clipboard error:', e2);
+          toast('Não consegui copiar — selecione manual.', 'error');
         }
       });
     });
+    // Filtros
     document.querySelectorAll('.pb-filter').forEach((btn) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.pb-filter').forEach((b) => b.classList.remove('is-active'));
@@ -752,34 +774,44 @@
 
   function renderPlaybookGrid() {
     const grid = document.getElementById('playbooks-grid');
+    if (!grid) return;
     let filtered = _allPlaybooks;
     if (_currentCategoria !== 'all') {
-      filtered = _allPlaybooks.filter((p) => p.categoria === _currentCategoria || p.categoria.includes(_currentCategoria));
+      filtered = _allPlaybooks.filter((p) => p.categoria === _currentCategoria || (p.categoria || '').includes(_currentCategoria));
     }
     grid.innerHTML = filtered.length
       ? filtered.map(renderPlaybook).join('')
-      : '<div class="empty">Nenhum playbook nessa categoria.</div>';
+      : '<div class="empty" style="grid-column: 1/-1;">Nenhum playbook nessa categoria.</div>';
     bindPlaybookEvents();
   }
 
   async function loadPlaybooks() {
+    const grid = document.getElementById('playbooks-grid');
+    if (grid) grid.innerHTML = '<div class="empty" style="grid-column: 1/-1;">Carregando playbooks...</div>';
     try {
       const data = await api('/playbooks');
       _allPlaybooks = data.playbooks || [];
       renderPlaybookGrid();
 
       const obj = document.getElementById('objecoes-list');
-      obj.innerHTML = (data.objecoes || []).map((o) => `
-        <div class="objecao-card">
-          <div class="objecao-card__titulo">"${o.titulo}"</div>
-          <div class="objecao-card__resposta">${o.resposta}</div>
-          <button class="pb__copy-btn" data-tpl="${o.resposta.replace(/"/g, '&quot;')}" style="margin-top:8px;">📋 Copiar resposta</button>
-        </div>
-      `).join('');
+      if (obj) {
+        obj.innerHTML = (data.objecoes || []).map((o, i) => {
+          const k = `obj__${i}`;
+          _tplStore.set(k, o.resposta);
+          return `
+            <div class="objecao-card">
+              <div class="objecao-card__titulo">"${escapeHtml(o.titulo)}"</div>
+              <div class="objecao-card__resposta">${escapeHtml(o.resposta)}</div>
+              <button class="pb__copy-btn" data-tpl-key="${k}" style="margin-top:8px;">📋 Copiar resposta</button>
+            </div>
+          `;
+        }).join('');
+      }
       bindPlaybookEvents();
     } catch (e) {
-      console.error(e);
-      toast(`Erro: ${e.message}`, 'error');
+      console.error('Falha ao carregar playbooks:', e);
+      if (grid) grid.innerHTML = `<div class="empty" style="grid-column: 1/-1; color: var(--color-fg-error-primary);">Erro ao carregar: ${e.message}. Verifique o token na aba Configurações.</div>`;
+      toast(`Erro playbooks: ${e.message}`, 'error');
     }
   }
 
