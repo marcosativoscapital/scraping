@@ -114,6 +114,14 @@ class GeminiClient:
         if response_mime_type:
             cfg_kwargs["response_mime_type"] = response_mime_type
 
+        # Desabilita thinking budget no 2.5-flash para liberar tokens para a saída
+        # (thinking consome max_output_tokens antes da resposta efetiva)
+        if "2.5-flash" in self.model or "2.5-pro" in self.model:
+            try:
+                cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+            except Exception:
+                pass
+
         try:
             response = self.client.models.generate_content(
                 model=self.model,

@@ -36,20 +36,35 @@ class BaseScraper(ABC):
         self.raw_dir.mkdir(parents=True, exist_ok=True)
 
     def fetch_html(self, url: str, wait_for: str | None = None) -> str:
-        """Baixa HTML renderizado via Playwright."""
+        """Baixa HTML renderizado via Playwright. Resiliente a timeouts."""
         for attempt in range(self.max_retries):
             try:
                 with sync_playwright() as p:
                     browser = p.chromium.launch(headless=self.headless)
-                    context = browser.new_context(user_agent=self.user_agent)
+                    context = browser.new_context(
+                        user_agent=self.user_agent,
+                        viewport={"width": 1280, "height": 800},
+                        locale="pt-BR",
+                    )
                     page = context.new_page()
-                    page.goto(url, timeout=30000)
+                    # 1) Navegação inicial — sem esperar full networkidle
+                    page.goto(url, timeout=30000, wait_until="domcontentloaded")
+                    # 2) Tenta o seletor específico, mas sem fail-fast
                     if wait_for:
-                        page.wait_for_selector(wait_for, timeout=15000)
-                    else:
-                        page.wait_for_load_state("networkidle", timeout=15000)
+                        try:
+                            page.wait_for_selector(wait_for, timeout=10000)
+                        except Exception:
+                            logger.debug("Seletor '%s' não encontrado, seguindo com DOM atual", wait_for)
+                    # 3) Espera curta para JS hidratar
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=8000)
+                    except Exception:
+                        pass
                     html = page.content()
                     browser.close()
+                    # Sanity check — HTML mínimo viável
+                    if len(html) < 500:
+                        raise RuntimeError(f"HTML muito pequeno ({len(html)} bytes), pode ter sido bloqueado")
                     return html
             except Exception as e:
                 logger.warning("Tentativa %d falhou para %s: %s", attempt + 1, url, e)

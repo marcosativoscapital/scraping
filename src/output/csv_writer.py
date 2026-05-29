@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 COLUNAS_PADRAO = [
     "vertical",
+    "segmento",
     "empresa",
     "cnpj",
     "razao_social",
@@ -24,8 +25,9 @@ COLUNAS_PADRAO = [
     "email_validado",
     "telefone",
     "porte_estimado",
-    "gatilho_personalizado",
     "score_icp",
+    "recomendacao",
+    "gatilho_personalizado",
     "fonte",
     "data_coleta",
     "observacoes",
