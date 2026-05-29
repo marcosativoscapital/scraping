@@ -38,6 +38,7 @@ logs/
 .DS_Store
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 Thumbs.db

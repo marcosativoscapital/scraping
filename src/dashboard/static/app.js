@@ -85,6 +85,7 @@
     if (tab === 'settings') loadSettings();
     if (tab === 'sdr') loadSDR();
     if (tab === 'playbooks') loadPlaybooks();
+    if (tab === 'oportunidades') loadOportunidades();
   }
 
   // ====== HEALTH ======
@@ -813,6 +814,523 @@
       if (grid) grid.innerHTML = `<div class="empty" style="grid-column: 1/-1; color: var(--color-fg-error-primary);">Erro ao carregar: ${e.message}. Verifique o token na aba Configurações.</div>`;
       toast(`Erro playbooks: ${e.message}`, 'error');
     }
+  }
+
+  // ====== OPORTUNIDADES (vendas) ======
+  const TIPO_LABEL = {
+    ligacao: 'Ligação', videochamada: 'Videochamada', email: 'E-mail',
+    visita: 'Visita', almoco: 'Almoço', personalizado: 'Personalizado',
+  };
+  const TEMP_LABEL = {
+    muito_quente: 'Muito quente', quente: 'Quente', frio: 'Frio', muito_frio: 'Muito frio',
+  };
+  const PIPE_LABEL = {
+    potencial_cliente: 'Potencial cliente', leads: 'Leads',
+    oportunidades: 'Oportunidades', pos_venda: 'Pós-venda',
+  };
+  const STATUS_LABEL = {
+    a_fazer: 'A fazer', executada: 'Executada', atrasada: 'Atrasada',
+    reagendada: 'Reagendada', cancelada: 'Cancelada',
+  };
+  const PIPE_ORDER = ['potencial_cliente', 'leads', 'oportunidades', 'pos_venda'];
+
+  let _oppView = 'lista';
+  let _oppBound = false;
+  let _oppLeads = [];
+  let _calRef = new Date();
+  let _calEscala = 'mes';
+  let _tlRef = new Date();
+  let _tlEscala = 'mes';
+  const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  const MESES_ABBR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+  function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+  function fmtTimeOnly(iso) { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
+  function statusLabel(s) { return { em_andamento: 'Em andamento', ganho: 'Ganho', congelado: 'Congelado', perdido: 'Perdido' }[s] || s; }
+
+  function tipoLabel(t) { return TIPO_LABEL[t] || '—'; }
+  function tempPill(t) { return t ? `<span class="temp-pill temp-pill--${t}">${TEMP_LABEL[t] || t}</span>` : '—'; }
+  function pipeBadge(p) { return p ? `<span class="pipe-badge pipe-badge--${p}">${PIPE_LABEL[p] || p}</span>` : '—'; }
+  function parseTags(tags) {
+    if (!tags) return [];
+    if (Array.isArray(tags)) return tags;
+    try { const a = JSON.parse(tags); return Array.isArray(a) ? a : []; }
+    catch { return String(tags).split(',').map((s) => s.trim()).filter(Boolean); }
+  }
+  function renderTags(tags) {
+    const a = parseTags(tags);
+    return a.length ? a.map((t) => `<span class="atv-tag">${escapeHtml(t)}</span>`).join(' ') : '—';
+  }
+  function emptyState(title, sub) {
+    return `<div class="opp-empty"><strong>${escapeHtml(title)}</strong>${escapeHtml(sub || '')}</div>`;
+  }
+  function pipeOptions(sel) {
+    return Object.entries(PIPE_LABEL).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
+  }
+  function statusOptions(sel) {
+    return Object.entries(STATUS_LABEL).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
+  }
+
+  function oppQuery() {
+    const qs = new URLSearchParams();
+    const periodo = document.getElementById('opp-f-periodo').value;
+    const tipo = document.getElementById('opp-f-tipo').value;
+    const temp = document.getElementById('opp-f-temp').value;
+    const pipe = document.getElementById('opp-f-pipeline').value;
+    if (periodo && periodo !== 'todos') qs.set('periodo', periodo);
+    if (tipo) qs.set('tipo', tipo);
+    if (temp) qs.set('temperatura', temp);
+    if (pipe) qs.set('pipeline', pipe);
+    return qs.toString();
+  }
+
+  async function renderOppView() {
+    const root = document.getElementById('opp-view-root');
+    if (!root) return;
+    if (_oppView === 'calendario') { renderCalendario(); return; }
+    if (_oppView === 'timeline') { renderTimeline(); return; }
+    root.innerHTML = emptyState('Carregando…', '');
+    try {
+      const q = oppQuery();
+      const data = await api('/atividades' + (q ? '?' + q : ''));
+      const items = data.atividades || [];
+      if (_oppView === 'lista') renderLista(items);
+      else renderQuadro(items);
+    } catch (e) {
+      root.innerHTML = emptyState('Erro ao carregar', e.message);
+      toast('Erro: ' + e.message, 'error');
+    }
+  }
+
+  function renderLista(items) {
+    const root = document.getElementById('opp-view-root');
+    if (!items.length) { root.innerHTML = emptyState('Nenhuma atividade', 'Crie a primeira com “Nova atividade”.'); return; }
+    const rows = items.map((a) => `
+      <tr data-atv="${a.id}" tabindex="0">
+        <td>${fmtDate(a.inicio_em)}</td>
+        <td>${tipoLabel(a.tipo)}</td>
+        <td class="cliente">${escapeHtml(a.cliente_empresa || '—')}</td>
+        <td>${escapeHtml(a.titulo || '—')}</td>
+        <td>${tempPill(a.temperatura)}</td>
+        <td>${escapeHtml(a.responsavel || '—')}</td>
+        <td>${pipeBadge(a.pipeline)}</td>
+        <td>${renderTags(a.tags)}</td>
+      </tr>`).join('');
+    root.innerHTML = `
+      <div class="opp-table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th>Horário</th><th>Tipo</th><th>Cliente alvo</th><th>Nome</th>
+            <th>Temperatura</th><th>Responsável</th><th>Pipeline</th><th>Tags</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="opp-foot">${items.length} atividade(s)</div>`;
+    root.querySelectorAll('[data-atv]').forEach((tr) => {
+      tr.addEventListener('click', () => showAtividade(tr.dataset.atv));
+      tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') showAtividade(tr.dataset.atv); });
+    });
+  }
+
+  function atvCard(a) {
+    return `<button class="atv-card" data-atv="${a.id}" type="button">
+      <div class="atv-card__top">
+        <span class="atv-card__date">${fmtDate(a.inicio_em)}</span>
+        ${tempPill(a.temperatura)}
+      </div>
+      <div class="atv-card__title">${escapeHtml(a.titulo || 'Sem título')}</div>
+      <span class="type-chip">${tipoLabel(a.tipo)}</span>
+      <div class="atv-card__meta">
+        <div><svg width="14" height="14"><use href="#i-building"/></svg>${escapeHtml(a.cliente_empresa || '—')}</div>
+        <div><svg width="14" height="14"><use href="#i-user"/></svg>${escapeHtml(a.contato_nome || a.cliente_decisor || '—')}</div>
+        <div><svg width="14" height="14"><use href="#i-clock"/></svg>${a.duracao_min ? a.duracao_min + ' min' : '—'}</div>
+      </div>
+    </button>`;
+  }
+
+  function renderQuadro(items) {
+    const root = document.getElementById('opp-view-root');
+    const byPipe = {};
+    PIPE_ORDER.forEach((k) => { byPipe[k] = []; });
+    items.forEach((a) => { (byPipe[a.pipeline] || (byPipe[a.pipeline] = [])).push(a); });
+    root.innerHTML = '<div class="opp-kanban">' + PIPE_ORDER.map((k) => {
+      const cards = byPipe[k] || [];
+      return `<div class="opp-col">
+        <div class="opp-col__head"><span class="opp-col__title">${PIPE_LABEL[k]}</span><span class="opp-col__count">${cards.length}</span></div>
+        ${cards.length ? cards.map(atvCard).join('') : '<div class="opp-col__empty">Vazio</div>'}
+      </div>`;
+    }).join('') + '</div>';
+    root.querySelectorAll('[data-atv]').forEach((el) => el.addEventListener('click', () => showAtividade(el.dataset.atv)));
+  }
+
+  async function ensureLeads() {
+    if (_oppLeads.length) return _oppLeads;
+    try { const d = await api('/db/leads?limit=300'); _oppLeads = d.leads || []; }
+    catch { _oppLeads = []; }
+    return _oppLeads;
+  }
+
+  async function openNovaAtividade() {
+    await ensureLeads();
+    const leadOpts = ['<option value="">Defina um cliente</option>']
+      .concat(_oppLeads.map((l) => `<option value="${l.id}">${escapeHtml(l.empresa || ('Lead #' + l.id))}</option>`)).join('');
+    const tipoChips = Object.entries(TIPO_LABEL)
+      .map(([k, v]) => `<button type="button" class="atv-chip" data-tipo="${k}">${v}</button>`).join('');
+    const html = `
+      <form class="atv-form" id="atv-form">
+        <div class="atv-form__natureza">
+          <button type="button" class="atv-nat is-active" data-nat="evento">Evento</button>
+          <button type="button" class="atv-nat" data-nat="tarefa">Tarefa</button>
+          <button type="button" class="atv-nat" data-nat="lembrete">Lembrete</button>
+        </div>
+        <div class="atv-chips" id="atv-tipos">${tipoChips}</div>
+        <div class="atv-field atv-field--full">
+          <label for="atv-titulo">Nome</label>
+          <input class="input" id="atv-titulo" placeholder="Defina um nome" required />
+        </div>
+        <div class="atv-grid">
+          <div class="atv-field"><label for="atv-inicio">Dia e horário</label><input class="input" type="datetime-local" id="atv-inicio" /></div>
+          <div class="atv-field"><label for="atv-duracao">Duração (min)</label><input class="input" type="number" min="0" step="5" id="atv-duracao" placeholder="30" /></div>
+          <div class="atv-field"><label for="atv-repeticao">Repetição</label>
+            <select class="input" id="atv-repeticao">
+              <option value="nenhuma">Nenhuma</option><option value="diaria">Diária</option>
+              <option value="semanal">Semanal</option><option value="mensal">Mensal</option>
+            </select></div>
+          <div class="atv-field" style="justify-content:flex-end">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="atv-diainteiro" /> Dia inteiro</label>
+          </div>
+          <div class="atv-field"><label for="atv-cliente">Cliente</label><select class="input" id="atv-cliente">${leadOpts}</select></div>
+          <div class="atv-field"><label for="atv-contato">Contato do cliente</label><input class="input" id="atv-contato" placeholder="Nome do contato" /></div>
+          <div class="atv-field"><label for="atv-temp">Temperatura</label>
+            <select class="input" id="atv-temp">
+              <option value="">—</option><option value="muito_quente">Muito quente</option>
+              <option value="quente">Quente</option><option value="frio">Frio</option><option value="muito_frio">Muito frio</option>
+            </select></div>
+          <div class="atv-field"><label for="atv-pipeline">Pipeline</label>
+            <select class="input" id="atv-pipeline">${pipeOptions('potencial_cliente')}</select></div>
+        </div>
+        <div class="atv-field atv-field--full"><label for="atv-desc">Descrição</label><textarea class="input" id="atv-desc" placeholder="Sobre o que você vai tratar?"></textarea></div>
+        <div class="atv-field atv-field--full"><label for="atv-tags">Tags</label><input class="input" id="atv-tags" placeholder="ex.: oportunidade, setor do cliente" /></div>
+        <div class="atv-form__foot">
+          <button type="button" class="btn btn--secondary" id="atv-cancel">Cancelar</button>
+          <button type="submit" class="btn btn--primary">Salvar</button>
+        </div>
+      </form>`;
+    showModal('Nova atividade', html);
+
+    let natureza = 'evento';
+    let tipo = null;
+    document.querySelectorAll('.atv-nat').forEach((b) => b.addEventListener('click', () => {
+      natureza = b.dataset.nat;
+      document.querySelectorAll('.atv-nat').forEach((x) => x.classList.toggle('is-active', x === b));
+    }));
+    document.getElementById('atv-tipos').addEventListener('click', (e) => {
+      const c = e.target.closest('.atv-chip');
+      if (!c) return;
+      tipo = c.dataset.tipo;
+      document.querySelectorAll('.atv-chip').forEach((x) => x.classList.toggle('is-active', x === c));
+    });
+    document.getElementById('atv-cancel').addEventListener('click', closeModal);
+    document.getElementById('atv-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const titulo = document.getElementById('atv-titulo').value.trim();
+      if (!titulo) { toast('Informe um nome', 'error'); return; }
+      const payload = {
+        titulo, natureza, tipo,
+        inicio_em: document.getElementById('atv-inicio').value || null,
+        duracao_min: parseInt(document.getElementById('atv-duracao').value || '', 10) || null,
+        dia_inteiro: document.getElementById('atv-diainteiro').checked,
+        repeticao: document.getElementById('atv-repeticao').value,
+        lead_id: parseInt(document.getElementById('atv-cliente').value || '', 10) || null,
+        contato_nome: document.getElementById('atv-contato').value.trim() || null,
+        temperatura: document.getElementById('atv-temp').value || null,
+        pipeline: document.getElementById('atv-pipeline').value,
+        descricao: document.getElementById('atv-desc').value.trim() || null,
+        tags: (document.getElementById('atv-tags').value || '').split(',').map((s) => s.trim()).filter(Boolean),
+      };
+      const btn = e.submitter;
+      if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
+      try {
+        await api('/atividades', { method: 'POST', body: JSON.stringify(payload) });
+        closeModal();
+        toast('Atividade criada', 'success');
+        renderOppView();
+      } catch (err) {
+        toast('Erro ao salvar: ' + err.message, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+      }
+    });
+  }
+
+  async function showAtividade(id) {
+    try {
+      const data = await api('/atividades/' + id);
+      const a = data.atividade;
+      const tags = parseTags(a.tags);
+      const html = `
+        <div class="atv-detail">
+          <span class="type-chip">${tipoLabel(a.tipo)}</span>
+          <div class="atv-detail__row">
+            <div><svg width="16" height="16"><use href="#i-clock"/></svg>${fmtDate(a.inicio_em)}${a.duracao_min ? ' · ' + a.duracao_min + ' min' : ''}</div>
+          </div>
+          <div class="atv-detail__row">
+            <div><svg width="16" height="16"><use href="#i-building"/></svg>${escapeHtml(a.cliente_empresa || '—')}</div>
+            <div><svg width="16" height="16"><use href="#i-user"/></svg>${escapeHtml(a.contato_nome || a.cliente_decisor || '—')}</div>
+          </div>
+          <div class="atv-detail__row">${tempPill(a.temperatura)} ${pipeBadge(a.pipeline)}</div>
+          ${a.descricao ? `<div><div class="atv-detail__label">Descrição</div><div class="atv-detail__desc">${escapeHtml(a.descricao)}</div></div>` : ''}
+          ${tags.length ? `<div><div class="atv-detail__label">Tags</div><div class="atv-detail__tags">${tags.map((t) => `<span class="atv-tag">${escapeHtml(t)}</span>`).join('')}</div></div>` : ''}
+          <div class="atv-grid">
+            <div class="atv-field"><label for="atv-d-pipeline">Pipeline</label><select class="input" id="atv-d-pipeline">${pipeOptions(a.pipeline)}</select></div>
+            <div class="atv-field"><label for="atv-d-status">Status</label><select class="input" id="atv-d-status">${statusOptions(a.status)}</select></div>
+          </div>
+          <div class="atv-form__foot"><button class="btn btn--primary" id="atv-d-save">Salvar alterações</button></div>
+        </div>`;
+      showModal(a.titulo || 'Atividade', html);
+      document.getElementById('atv-d-save').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+          await api('/atividades/' + id, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              pipeline: document.getElementById('atv-d-pipeline').value,
+              status: document.getElementById('atv-d-status').value,
+            }),
+          });
+          closeModal();
+          toast('Atividade atualizada', 'success');
+          renderOppView();
+        } catch (err) { toast('Erro: ' + err.message, 'error'); btn.disabled = false; }
+      });
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
+  }
+
+  // ---- Calendário ----
+  function calFilterQuery() {
+    const qs = new URLSearchParams();
+    const tipo = document.getElementById('opp-f-tipo').value;
+    const temp = document.getElementById('opp-f-temp').value;
+    const pipe = document.getElementById('opp-f-pipeline').value;
+    if (tipo) qs.set('tipo', tipo);
+    if (temp) qs.set('temperatura', temp);
+    if (pipe) qs.set('pipeline', pipe);
+    return qs;
+  }
+  function shiftCal(dir) {
+    if (_calEscala === 'semana') _calRef.setDate(_calRef.getDate() + 7 * dir);
+    else _calRef.setMonth(_calRef.getMonth() + dir);
+    _calRef = new Date(_calRef);
+  }
+  function bindCalControls() {
+    const prev = document.getElementById('cal-prev');
+    const next = document.getElementById('cal-next');
+    const today = document.getElementById('cal-today');
+    const seg = document.getElementById('cal-seg');
+    if (prev) prev.onclick = () => { shiftCal(-1); renderCalendario(); };
+    if (next) next.onclick = () => { shiftCal(1); renderCalendario(); };
+    if (today) today.onclick = () => { _calRef = new Date(); renderCalendario(); };
+    if (seg) seg.onclick = (e) => { const b = e.target.closest('.opp-seg__btn'); if (!b) return; _calEscala = b.dataset.esc; renderCalendario(); };
+  }
+  function calEv(a) {
+    return `<button class="cal-ev" data-atv="${a.id}" type="button" title="${escapeHtml(a.titulo || '')}">
+      <span class="temp-dot temp-dot--${a.temperatura || 'none'}"></span>
+      <span class="cal-ev__t">${a.inicio_em ? fmtTimeOnly(a.inicio_em) : ''}</span>
+      <span class="cal-ev__c">${escapeHtml(a.cliente_empresa || a.titulo || '—')}</span>
+    </button>`;
+  }
+  function calMonth(byDay) {
+    const ref = _calRef;
+    const first = new Date(ref.getFullYear(), ref.getMonth(), 1);
+    const start = new Date(first);
+    start.setDate(1 - first.getDay());
+    const today = new Date();
+    let cells = '';
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const list = byDay[isoDate(d)] || [];
+      const cls = ['cal-cell'];
+      if (d.getMonth() !== ref.getMonth()) cls.push('cal-cell--out');
+      if (sameDay(d, today)) cls.push('cal-cell--today');
+      const evs = list.slice(0, 3).map(calEv).join('');
+      const more = list.length > 3 ? `<div class="cal-more">+${list.length - 3}</div>` : '';
+      cells += `<div class="${cls.join(' ')}"><div class="cal-daynum">${d.getDate()}</div>${evs}${more}</div>`;
+    }
+    const head = DOW.map((x) => `<div class="cal-dow">${x}</div>`).join('');
+    return `<div class="cal-grid"><div class="cal-weekhead">${head}</div><div class="cal-cells">${cells}</div></div>`;
+  }
+  function calWeek(byDay) {
+    const ws = new Date(_calRef);
+    ws.setDate(ws.getDate() - ws.getDay());
+    const today = new Date();
+    let head = '';
+    let cells = '';
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(ws);
+      d.setDate(ws.getDate() + i);
+      head += `<div class="cal-dow">${DOW[i]} ${d.getDate()}</div>`;
+      const list = byDay[isoDate(d)] || [];
+      const evs = list.map(calEv).join('') || '<div class="cal-more">—</div>';
+      cells += `<div class="cal-cell cal-cell--week ${sameDay(d, today) ? 'cal-cell--today' : ''}">${evs}</div>`;
+    }
+    return `<div class="cal-grid cal-grid--week"><div class="cal-weekhead cal-weekhead--week">${head}</div><div class="cal-cells cal-cells--week">${cells}</div></div>`;
+  }
+  function calControls() {
+    const isWeek = _calEscala === 'semana';
+    let label;
+    if (isWeek) {
+      const ws = new Date(_calRef); ws.setDate(ws.getDate() - ws.getDay());
+      const we = new Date(ws); we.setDate(we.getDate() + 6);
+      label = `${ws.getDate()} ${MESES_ABBR[ws.getMonth()]} – ${we.getDate()} ${MESES_ABBR[we.getMonth()]} ${we.getFullYear()}`;
+    } else {
+      label = `${MESES[_calRef.getMonth()]} de ${_calRef.getFullYear()}`;
+    }
+    return `<div class="opp-subbar">
+      <div class="opp-nav">
+        <button class="icon-btn" id="cal-prev" aria-label="Anterior"><svg width="16" height="16"><use href="#i-chev-left"/></svg></button>
+        <span class="opp-nav__label">${label}</span>
+        <button class="icon-btn" id="cal-next" aria-label="Próximo"><svg width="16" height="16"><use href="#i-chev-right"/></svg></button>
+        <button class="btn btn--secondary btn--sm" id="cal-today">Hoje</button>
+      </div>
+      <div class="opp-seg" id="cal-seg">
+        <button class="opp-seg__btn ${!isWeek ? 'is-active' : ''}" data-esc="mes">Mês</button>
+        <button class="opp-seg__btn ${isWeek ? 'is-active' : ''}" data-esc="semana">Semana</button>
+      </div>
+    </div>`;
+  }
+  async function renderCalendario() {
+    const root = document.getElementById('opp-view-root');
+    const controls = calControls();
+    root.innerHTML = controls + '<div class="opp-empty">Carregando…</div>';
+    bindCalControls();
+    try {
+      const qs = calFilterQuery();
+      qs.set('ref', isoDate(_calRef));
+      qs.set('escala', _calEscala);
+      const data = await api('/atividades/calendario?' + qs.toString());
+      const byDay = {};
+      (data.atividades || []).forEach((a) => { const k = (a.inicio_em || '').slice(0, 10); (byDay[k] || (byDay[k] = [])).push(a); });
+      root.innerHTML = controls + (_calEscala === 'semana' ? calWeek(byDay) : calMonth(byDay));
+      bindCalControls();
+      root.querySelectorAll('[data-atv]').forEach((el) => el.addEventListener('click', () => showAtividade(el.dataset.atv)));
+    } catch (e) {
+      root.innerHTML = controls + emptyState('Erro ao carregar', e.message);
+      bindCalControls();
+    }
+  }
+
+  // ---- Timeline ----
+  function shiftTl(dir) {
+    if (_tlEscala === 'ano') _tlRef.setFullYear(_tlRef.getFullYear() + dir);
+    else if (_tlEscala === 'trimestre') _tlRef.setMonth(_tlRef.getMonth() + 3 * dir);
+    else _tlRef.setMonth(_tlRef.getMonth() + dir);
+    _tlRef = new Date(_tlRef);
+  }
+  function bindTlControls() {
+    const prev = document.getElementById('tl-prev');
+    const next = document.getElementById('tl-next');
+    const today = document.getElementById('tl-today');
+    const seg = document.getElementById('tl-seg');
+    if (prev) prev.onclick = () => { shiftTl(-1); renderTimeline(); };
+    if (next) next.onclick = () => { shiftTl(1); renderTimeline(); };
+    if (today) today.onclick = () => { _tlRef = new Date(); renderTimeline(); };
+    if (seg) seg.onclick = (e) => { const b = e.target.closest('.opp-seg__btn'); if (!b) return; _tlEscala = b.dataset.esc; renderTimeline(); };
+  }
+  function tlAxis(start, end, esc) {
+    const span = (end - start) || 1;
+    const ticks = [];
+    if (esc === 'ano') {
+      for (let m = 0; m < 12; m++) { const d = new Date(start.getFullYear(), m, 1); ticks.push([(d - start) / span * 100, MESES_ABBR[m]]); }
+    } else if (esc === 'trimestre') {
+      for (let i = 0; i < 3; i++) { const d = new Date(start.getFullYear(), start.getMonth() + i, 1); ticks.push([(d - start) / span * 100, MESES_ABBR[d.getMonth()]]); }
+    } else {
+      const days = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+      for (let day = 1; day <= days; day += 5) { const d = new Date(start.getFullYear(), start.getMonth(), day); ticks.push([(d - start) / span * 100, String(day)]); }
+    }
+    return ticks.map(([l, t]) => `<span class="tl-axis__lbl" style="left:${l}%">${t}</span>`).join('');
+  }
+  function tlControls() {
+    const escLabel = { mes: 'Mês', trimestre: 'Trimestre', ano: 'Ano' };
+    let label;
+    if (_tlEscala === 'ano') label = `${_tlRef.getFullYear()}`;
+    else if (_tlEscala === 'trimestre') label = `${Math.floor(_tlRef.getMonth() / 3) + 1}º trimestre · ${_tlRef.getFullYear()}`;
+    else label = `${MESES[_tlRef.getMonth()]} de ${_tlRef.getFullYear()}`;
+    return `<div class="opp-subbar">
+      <div class="opp-nav">
+        <button class="icon-btn" id="tl-prev" aria-label="Anterior"><svg width="16" height="16"><use href="#i-chev-left"/></svg></button>
+        <span class="opp-nav__label">${label}</span>
+        <button class="icon-btn" id="tl-next" aria-label="Próximo"><svg width="16" height="16"><use href="#i-chev-right"/></svg></button>
+        <button class="btn btn--secondary btn--sm" id="tl-today">Hoje</button>
+      </div>
+      <div class="opp-seg" id="tl-seg">
+        ${['mes', 'trimestre', 'ano'].map((k) => `<button class="opp-seg__btn ${_tlEscala === k ? 'is-active' : ''}" data-esc="${k}">${escLabel[k]}</button>`).join('')}
+      </div>
+    </div>`;
+  }
+  async function renderTimeline() {
+    const root = document.getElementById('opp-view-root');
+    const controls = tlControls();
+    root.innerHTML = controls + '<div class="opp-empty">Carregando…</div>';
+    bindTlControls();
+    try {
+      const data = await api(`/atividades/timeline?ref=${isoDate(_tlRef)}&escala=${_tlEscala}`);
+      const start = new Date(data.inicio);
+      const end = new Date(data.fim);
+      const span = (end - start) || 1;
+      const pct = (iso) => Math.max(0, Math.min(100, (new Date(iso) - start) / span * 100));
+      const ops = data.oportunidades || [];
+      if (!ops.length) {
+        root.innerHTML = controls + emptyState('Sem oportunidades no período', 'Crie atividades vinculadas a um cliente.');
+        bindTlControls();
+        return;
+      }
+      const rows = ops.map((o) => {
+        const ds = o.atividades.map((a) => a.inicio_em).filter(Boolean).sort();
+        const barL = ds.length ? pct(ds[0]) : 0;
+        const barR = ds.length ? pct(ds[ds.length - 1]) : 0;
+        const ticks = o.atividades.filter((a) => a.inicio_em).map((a) =>
+          `<span class="tl-tick temp-dot--${a.temperatura || 'none'}" style="left:${pct(a.inicio_em)}%" data-atv="${a.id}" title="${escapeHtml(a.titulo || '')}"></span>`).join('');
+        return `<div class="tl-row">
+          <div class="tl-row__label">
+            <div class="tl-row__emp">${escapeHtml(o.empresa)}</div>
+            <div class="tl-row__meta">Ciclo: ${o.ciclo_dias}d · <span class="tl-status tl-status--${o.status}">${statusLabel(o.status)}</span></div>
+          </div>
+          <div class="tl-track">
+            <div class="tl-bar tl-bar--${o.status}" style="left:${barL}%;width:${Math.max(1, barR - barL)}%"></div>
+            ${ticks}
+          </div>
+        </div>`;
+      }).join('');
+      root.innerHTML = controls + `<div class="tl">
+        <div class="tl-row tl-row--axis"><div class="tl-row__label"></div><div class="tl-track tl-axis">${tlAxis(start, end, _tlEscala)}</div></div>
+        ${rows}
+      </div>`;
+      bindTlControls();
+      root.querySelectorAll('.tl-tick[data-atv]').forEach((el) => el.addEventListener('click', () => showAtividade(el.dataset.atv)));
+    } catch (e) {
+      root.innerHTML = controls + emptyState('Erro ao carregar', e.message);
+      bindTlControls();
+    }
+  }
+
+  async function loadOportunidades() {
+    if (!_oppBound) {
+      _oppBound = true;
+      document.getElementById('opp-views').addEventListener('click', (e) => {
+        const btn = e.target.closest('.opp-view');
+        if (!btn) return;
+        _oppView = btn.dataset.view;
+        document.querySelectorAll('.opp-view').forEach((b) => b.classList.toggle('is-active', b === btn));
+        renderOppView();
+      });
+      ['opp-f-periodo', 'opp-f-tipo', 'opp-f-temp', 'opp-f-pipeline'].forEach((id) =>
+        document.getElementById(id).addEventListener('change', renderOppView));
+      document.getElementById('opp-nova').addEventListener('click', openNovaAtividade);
+    }
+    renderOppView();
   }
 
   // ====== MODAL CLOSE ======

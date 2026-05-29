@@ -105,11 +105,40 @@ CREATE TABLE IF NOT EXISTS sdr_activities (
 CREATE INDEX IF NOT EXISTS idx_act_lead ON sdr_activities(lead_id);
 CREATE INDEX IF NOT EXISTS idx_act_sdr ON sdr_activities(sdr_email, criado_em);
 
+CREATE TABLE IF NOT EXISTS atividades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id INTEGER,                            -- cliente-alvo (FK leads)
+    titulo TEXT,
+    natureza TEXT DEFAULT 'evento',             -- evento | tarefa | lembrete
+    tipo TEXT,                                  -- ligacao | videochamada | email | visita | almoco | personalizado
+    inicio_em TEXT,                             -- ISO8601 (dia + hora)
+    duracao_min INTEGER,
+    dia_inteiro INTEGER DEFAULT 0,
+    repeticao TEXT DEFAULT 'nenhuma',           -- nenhuma | diaria | semanal | mensal
+    temperatura TEXT,                           -- muito_quente | quente | frio | muito_frio
+    pipeline TEXT DEFAULT 'potencial_cliente',  -- potencial_cliente | leads | oportunidades | pos_venda
+    responsavel TEXT,                           -- e-mail do SDR
+    contato_nome TEXT,
+    descricao TEXT,
+    tags TEXT,                                  -- JSON array
+    status TEXT DEFAULT 'a_fazer',              -- a_fazer | executada | atrasada | reagendada | cancelada
+    criado_em TEXT NOT NULL,
+    atualizado_em TEXT NOT NULL,
+    FOREIGN KEY (lead_id) REFERENCES leads(id)
+);
+CREATE INDEX IF NOT EXISTS idx_atv_lead ON atividades(lead_id);
+CREATE INDEX IF NOT EXISTS idx_atv_inicio ON atividades(inicio_em);
+CREATE INDEX IF NOT EXISTS idx_atv_pipeline ON atividades(pipeline);
+CREATE INDEX IF NOT EXISTS idx_atv_status ON atividades(status);
+CREATE INDEX IF NOT EXISTS idx_atv_responsavel ON atividades(responsavel);
+
 -- Colunas adicionais em leads (atribuição + status SDR)
 """
 
 # Migrations idempotentes para colunas adicionais (ALTER TABLE)
 LEAD_MIGRATIONS = [
+    ("telefone", "TEXT"),
+    ("pipeline_status", "TEXT"),   # em_andamento | congelado | ganho | perdido (timeline de vendas)
     ("sdr_assigned", "TEXT"),
     ("sdr_assigned_at", "TEXT"),
     ("sdr_status", "TEXT DEFAULT 'a_contatar'"),  # a_contatar | contatado | respondeu | qualificado | descartado | reuniao_agendada
@@ -182,6 +211,7 @@ class Store:
             "decisor_linkedin": lead.get("decisor_linkedin"),
             "email_provavel": lead.get("email_provavel"),
             "email_validado": int(bool(lead.get("email_validado"))) if lead.get("email_validado") is not None else None,
+            "telefone": lead.get("telefone"),
             "porte_estimado": lead.get("porte_estimado"),
             "score_icp": lead.get("score_icp"),
             "recomendacao": lead.get("recomendacao"),
@@ -313,6 +343,115 @@ class Store:
                 "SELECT * FROM events ORDER BY criado_em DESC LIMIT ?", (limit,)
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ====== Atividades (vendas / oportunidades) ======
+
+    def create_atividade(self, data: dict[str, Any]) -> int:
+        """Cria uma atividade de venda vinculada (opcionalmente) a um lead."""
+        now = datetime.now().isoformat()
+        tags = data.get("tags")
+        if isinstance(tags, (list, dict)):
+            tags = json.dumps(tags, ensure_ascii=False)
+        cols = {
+            "lead_id": data.get("lead_id"),
+            "titulo": data.get("titulo"),
+            "natureza": data.get("natureza") or "evento",
+            "tipo": data.get("tipo"),
+            "inicio_em": data.get("inicio_em"),
+            "duracao_min": data.get("duracao_min"),
+            "dia_inteiro": int(bool(data.get("dia_inteiro"))),
+            "repeticao": data.get("repeticao") or "nenhuma",
+            "temperatura": data.get("temperatura"),
+            "pipeline": data.get("pipeline") or "potencial_cliente",
+            "responsavel": data.get("responsavel"),
+            "contato_nome": data.get("contato_nome"),
+            "descricao": data.get("descricao"),
+            "tags": tags,
+            "status": data.get("status") or "a_fazer",
+            "criado_em": now,
+            "atualizado_em": now,
+        }
+        with self.conn() as c:
+            keys = ",".join(cols.keys())
+            placeholders = ",".join("?" * len(cols))
+            cur = c.execute(
+                f"INSERT INTO atividades ({keys}) VALUES ({placeholders})",
+                tuple(cols.values()),
+            )
+            return cur.lastrowid
+
+    def get_atividade(self, atividade_id: int) -> dict | None:
+        with self.conn() as c:
+            row = c.execute(
+                """SELECT a.*, l.empresa AS cliente_empresa, l.decisor_nome AS cliente_decisor,
+                          l.vertical AS cliente_vertical, l.site AS cliente_site
+                   FROM atividades a LEFT JOIN leads l ON a.lead_id = l.id
+                   WHERE a.id = ?""",
+                (atividade_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_atividades(
+        self,
+        responsavel: str | None = None,
+        tipo: str | None = None,
+        temperatura: str | None = None,
+        pipeline: str | None = None,
+        status: str | None = None,
+        lead_id: int | None = None,
+        inicio_de: str | None = None,
+        inicio_ate: str | None = None,
+        limit: int = 500,
+    ) -> list[dict]:
+        sql = [
+            """SELECT a.*, l.empresa AS cliente_empresa, l.decisor_nome AS cliente_decisor,
+                      l.vertical AS cliente_vertical, l.pipeline_status AS cliente_status
+               FROM atividades a LEFT JOIN leads l ON a.lead_id = l.id WHERE 1=1"""
+        ]
+        params: list[Any] = []
+        for col, val in (
+            ("a.responsavel", responsavel),
+            ("a.tipo", tipo),
+            ("a.temperatura", temperatura),
+            ("a.pipeline", pipeline),
+            ("a.status", status),
+            ("a.lead_id", lead_id),
+        ):
+            if val is not None and val != "":
+                sql.append(f" AND {col} = ?")
+                params.append(val)
+        if inicio_de:
+            sql.append(" AND a.inicio_em >= ?")
+            params.append(inicio_de)
+        if inicio_ate:
+            sql.append(" AND a.inicio_em < ?")
+            params.append(inicio_ate)
+        sql.append(" ORDER BY COALESCE(a.inicio_em, a.criado_em) ASC LIMIT ?")
+        params.append(limit)
+        with self.conn() as c:
+            return [dict(r) for r in c.execute("".join(sql), params).fetchall()]
+
+    def update_atividade(self, atividade_id: int, fields: dict[str, Any]) -> bool:
+        allowed = {
+            "lead_id", "titulo", "natureza", "tipo", "inicio_em", "duracao_min",
+            "dia_inteiro", "repeticao", "temperatura", "pipeline", "responsavel",
+            "contato_nome", "descricao", "tags", "status",
+        }
+        sets = {k: v for k, v in fields.items() if k in allowed}
+        if "tags" in sets and isinstance(sets["tags"], (list, dict)):
+            sets["tags"] = json.dumps(sets["tags"], ensure_ascii=False)
+        if "dia_inteiro" in sets:
+            sets["dia_inteiro"] = int(bool(sets["dia_inteiro"]))
+        if not sets:
+            return False
+        sets["atualizado_em"] = datetime.now().isoformat()
+        clause = ", ".join(f"{k}=?" for k in sets)
+        with self.conn() as c:
+            cur = c.execute(
+                f"UPDATE atividades SET {clause} WHERE id=?",
+                (*sets.values(), atividade_id),
+            )
+            return cur.rowcount > 0
 
 
 def _fingerprint(lead: dict) -> str:

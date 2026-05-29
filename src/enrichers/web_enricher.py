@@ -10,12 +10,15 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
+import time
 from typing import Any
 
 from google import genai
 from google.genai import types
 
 from ..db.store import Store
+from .email_validator import validate_email
 
 logger = logging.getLogger(__name__)
 
@@ -117,32 +120,58 @@ Responda APENAS com JSON válido conforme schema:
 Use Google Search ativamente. Não invente — null se não achou."""
 
     client = get_client_with_search()
-    try:
-        config = types.GenerateContentConfig(
-            tools=[types.Tool(google_search=types.GoogleSearch())],
-            system_instruction=SYSTEM_ENRICHER,
-            temperature=0.0,
-            max_output_tokens=4096,
-        )
-        response = client.models.generate_content(
-            model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
-            contents=prompt,
-            config=config,
-        )
-        text = (response.text or "").strip()
-        # Remove cercas markdown se houver
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:].strip()
-            text = text.rstrip("`").strip()
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.error("JSON malformado de Gemini: %s\nTexto: %s", e, text[:500])
-        return {"erro": f"json_decode: {e}", "raw": text[:800]}
-    except Exception as e:
-        logger.exception("Falha no enrichment web: %s", e)
-        return {"erro": str(e)}
+    last_err: str | None = None
+    text = ""
+
+    # Retry com backoff — Google Search grounding tem rate limit
+    for attempt in range(3):
+        try:
+            config = types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                system_instruction=SYSTEM_ENRICHER,
+                temperature=0.0,
+                max_output_tokens=8192,
+                # Sem response_mime_type — incompatível com google_search
+            )
+            response = client.models.generate_content(
+                model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+                contents=prompt,
+                config=config,
+            )
+            text = (response.text or "").strip()
+
+            if not text:
+                last_err = "resposta vazia (possível rate limit do google_search)"
+                logger.warning("Tentativa %d: %s", attempt + 1, last_err)
+                time.sleep(8 * (attempt + 1))
+                continue
+
+            # Extrai JSON do texto (pode vir com markdown ou texto explicativo)
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:].strip()
+                text = text.rstrip("`").strip()
+            else:
+                # Procura primeiro { ... } válido
+                m = re.search(r"\{[\s\S]*\}", text)
+                if m:
+                    text = m.group(0)
+
+            # strict=False tolera caracteres de controle literais (\n, tabs)
+            # que o Gemini às vezes injeta dentro de strings JSON.
+            return json.loads(text, strict=False)
+
+        except json.JSONDecodeError as e:
+            last_err = f"json_decode: {e}"
+            logger.warning("Tentativa %d falhou parsing: %s · texto: %s", attempt + 1, e, text[:300])
+            time.sleep(5 * (attempt + 1))
+        except Exception as e:
+            last_err = str(e)
+            logger.warning("Tentativa %d falhou: %s", attempt + 1, e)
+            time.sleep(5 * (attempt + 1))
+
+    return {"erro": last_err, "raw": text[:500] if text else ""}
 
 
 def enrich_and_save(lead_id: int, store: Store | None = None) -> dict[str, Any]:
@@ -160,17 +189,29 @@ def enrich_and_save(lead_id: int, store: Store | None = None) -> dict[str, Any]:
     if "erro" not in enrichment:
         decisores = enrichment.get("decisores", [])
         primeiro = decisores[0] if decisores else {}
+        email = (
+            primeiro.get("email")
+            or lead.get("email_provavel")
+            or enrichment.get("email_institucional")
+        )
         updates = {
             "decisor_nome": primeiro.get("nome"),
             "decisor_cargo": primeiro.get("cargo"),
             "decisor_linkedin": primeiro.get("linkedin_url"),
-            "email_provavel": primeiro.get("email") or lead.get("email_provavel") or enrichment.get("email_institucional"),
+            "email_provavel": email,
             "telefone": lead.get("telefone") or enrichment.get("telefone_institucional"),
             "observacoes": enrichment.get("oportunidade_resumida"),
         }
+        # Valida e-mail (MX) quando houver — preenche email_validado (0/1)
+        if email:
+            updates["email_validado"] = int(validate_email(email)["mx_ok"])
+
         with store.conn() as c:
-            sets = ", ".join(f"{k}=?" for k, v in updates.items() if v)
-            vals = [v for v in updates.values() if v]
+            # Persiste só campos com valor (não sobrescreve com None/"").
+            # email_validado=0 é significativo e NÃO deve ser descartado.
+            sets_items = [(k, v) for k, v in updates.items() if v is not None and v != ""]
+            sets = ", ".join(f"{k}=?" for k, _ in sets_items)
+            vals = [v for _, v in sets_items]
             if sets:
                 c.execute(f"UPDATE leads SET {sets} WHERE id=?", (*vals, lead_id))
             # Salva enrichment completo no payload_json
@@ -186,12 +227,19 @@ def enrich_and_save(lead_id: int, store: Store | None = None) -> dict[str, Any]:
     return enrichment
 
 
-def enrich_top_n(n: int = 50, min_score: int = 60, store: Store | None = None) -> dict[str, Any]:
-    """Enriquece os top N leads do DB."""
+def enrich_top_n(
+    n: int = 50,
+    min_score: int = 60,
+    store: Store | None = None,
+    delay_seconds: float = 4.0,
+    vertical: str | None = None,
+) -> dict[str, Any]:
+    """Enriquece os top N leads do DB com delay entre chamadas (anti rate-limit)."""
     store = store or Store()
-    leads = store.all_leads(min_score=min_score, limit=n)
+    leads = store.all_leads(vertical=vertical, min_score=min_score, limit=n)
     results = {"enriquecidos": 0, "erros": 0, "detalhes": []}
-    for lead in leads:
+
+    for i, lead in enumerate(leads):
         try:
             e = enrich_and_save(lead["id"], store=store)
             results["detalhes"].append({
@@ -204,9 +252,43 @@ def enrich_top_n(n: int = 50, min_score: int = 60, store: Store | None = None) -
             })
             if "erro" not in e:
                 results["enriquecidos"] += 1
+                logger.info("[%d/%d] %s · %d decisores · vendor: %s",
+                            i + 1, len(leads), lead["empresa"][:40],
+                            len(e.get("decisores", [])), e.get("vendor_comunicacao_atual") or "—")
             else:
                 results["erros"] += 1
         except Exception as ex:
             logger.exception("Falha no lead %s: %s", lead.get("empresa"), ex)
             results["erros"] += 1
+
+        # Delay anti rate-limit do google_search
+        if i < len(leads) - 1:
+            time.sleep(delay_seconds)
+
     return results
+
+
+def validate_existing_emails(store: Store | None = None, limit: int = 10000) -> dict[str, Any]:
+    """Backfill: valida (MX) e-mails já gravados que estão sem email_validado.
+
+    Cobre leads que foram coletados antes da validação automática no enrichment.
+    Determinístico e gratuito (só DNS) — não chama Gemini.
+    """
+    store = store or Store()
+    with store.conn() as c:
+        rows = c.execute(
+            "SELECT id, email_provavel FROM leads "
+            "WHERE email_provavel IS NOT NULL AND email_provavel != '' "
+            "AND email_validado IS NULL LIMIT ?",
+            (limit,),
+        ).fetchall()
+
+    mx_ok = 0
+    for r in rows:
+        valido = int(validate_email(r["email_provavel"])["mx_ok"])
+        mx_ok += valido
+        with store.conn() as c:
+            c.execute("UPDATE leads SET email_validado=? WHERE id=?", (valido, r["id"]))
+
+    logger.info("Validação de e-mails: %d processados, %d com MX ok", len(rows), mx_ok)
+    return {"processados": len(rows), "mx_ok": mx_ok, "total_candidatos": len(rows)}

@@ -30,7 +30,7 @@ from ..jobs.monitor import run_monitor
 from ..jobs.rescore import run_rescore
 from ..jobs.scheduler import Scheduler
 from ..outbound.orchestrator import generate_and_store
-from ..output.csv_writer import write_leads_csv
+from ..output.csv_writer import hydrate_db_row, write_leads_csv
 from ..pipeline import run_pipeline
 from ..playbooks.library import get_library
 from ..playbooks.selector import select_playbooks_for_lead
@@ -155,14 +155,14 @@ def db_export_csv(
 
     buf = io.StringIO()
     cols = [
-        "vertical", "empresa", "cnpj", "razao_social", "site", "decisor_nome",
-        "decisor_cargo", "decisor_linkedin", "email_provavel", "porte_estimado",
-        "score_icp", "recomendacao", "gatilho_personalizado", "observacoes",
-        "fonte", "criado_em", "atualizado_em",
+        "vertical", "segmento", "empresa", "cnpj", "razao_social", "site", "decisor_nome",
+        "decisor_cargo", "decisor_linkedin", "email_provavel", "email_validado", "telefone",
+        "porte_estimado", "score_icp", "recomendacao", "gatilho_personalizado", "observacoes",
+        "fonte", "data_coleta", "criado_em", "atualizado_em",
     ]
     w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
     w.writeheader()
-    w.writerows(leads)
+    w.writerows(hydrate_db_row(l) for l in leads)
     buf.seek(0)
 
     return StreamingResponse(
@@ -578,6 +578,232 @@ def enrich_lead(lead_id: int, x_api_token: Optional[str] = Header(default=None))
     """Enriquece um lead único sob demanda."""
     _auth(x_api_token)
     return enrich_and_save(lead_id, store=STORE)
+
+
+# ====== ATIVIDADES (vendas / oportunidades) ======
+
+
+class AtividadePayload(BaseModel):
+    lead_id: Optional[int] = None
+    titulo: Optional[str] = None
+    natureza: str = "evento"            # evento | tarefa | lembrete
+    tipo: Optional[str] = None          # ligacao | videochamada | email | visita | almoco | personalizado
+    inicio_em: Optional[str] = None     # ISO8601
+    duracao_min: Optional[int] = None
+    dia_inteiro: bool = False
+    repeticao: str = "nenhuma"
+    temperatura: Optional[str] = None   # muito_quente | quente | frio | muito_frio
+    pipeline: str = "potencial_cliente"
+    responsavel: Optional[str] = None
+    contato_nome: Optional[str] = None
+    descricao: Optional[str] = None
+    tags: Optional[list[str]] = None
+    status: str = "a_fazer"
+
+
+class AtividadePatch(BaseModel):
+    lead_id: Optional[int] = None
+    titulo: Optional[str] = None
+    natureza: Optional[str] = None
+    tipo: Optional[str] = None
+    inicio_em: Optional[str] = None
+    duracao_min: Optional[int] = None
+    dia_inteiro: Optional[bool] = None
+    repeticao: Optional[str] = None
+    temperatura: Optional[str] = None
+    pipeline: Optional[str] = None
+    responsavel: Optional[str] = None
+    contato_nome: Optional[str] = None
+    descricao: Optional[str] = None
+    tags: Optional[list[str]] = None
+    status: Optional[str] = None
+
+
+def _period_bounds(periodo: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """Converte 'hoje'/'semana'/'mes' em limites ISO [início, fim) para inicio_em."""
+    from datetime import timedelta
+
+    if not periodo or periodo == "todos":
+        return None, None
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    if periodo == "hoje":
+        start, end = today, today + timedelta(days=1)
+    elif periodo == "semana":
+        start = today - timedelta(days=today.weekday())
+        end = start + timedelta(days=7)
+    elif periodo == "mes":
+        start = today.replace(day=1)
+        end = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    else:
+        return None, None
+    return start.isoformat(), end.isoformat()
+
+
+@app.get("/atividades")
+def atividades_list(
+    responsavel: Optional[str] = Query(default=None),
+    periodo: Optional[str] = Query(default=None),
+    tipo: Optional[str] = Query(default=None),
+    temperatura: Optional[str] = Query(default=None),
+    pipeline: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    lead_id: Optional[int] = Query(default=None),
+    limit: int = Query(default=500, le=2000),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    inicio_de, inicio_ate = _period_bounds(periodo)
+    items = STORE.list_atividades(
+        responsavel=responsavel,
+        tipo=tipo,
+        temperatura=temperatura,
+        pipeline=pipeline,
+        status=status,
+        lead_id=lead_id,
+        inicio_de=inicio_de,
+        inicio_ate=inicio_ate,
+        limit=limit,
+    )
+    return {"atividades": items, "count": len(items)}
+
+
+@app.post("/atividades")
+def atividades_create(payload: AtividadePayload, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    aid = STORE.create_atividade(payload.model_dump())
+    STORE.log_event(
+        "atividade_criada",
+        {"atividade_id": aid, "titulo": payload.titulo, "pipeline": payload.pipeline},
+    )
+    return {"ok": True, "id": aid, "atividade": STORE.get_atividade(aid)}
+
+
+@app.get("/atividades/{atividade_id:int}")
+def atividades_detail(atividade_id: int, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    atv = STORE.get_atividade(atividade_id)
+    if not atv:
+        raise HTTPException(404, "Atividade não encontrada")
+    return {"atividade": atv}
+
+
+@app.patch("/atividades/{atividade_id:int}")
+def atividades_update(
+    atividade_id: int,
+    payload: AtividadePatch,
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(400, "Nada para atualizar")
+    if not STORE.update_atividade(atividade_id, fields):
+        raise HTTPException(404, "Atividade não encontrada ou nada alterado")
+    if "status" in fields or "pipeline" in fields:
+        STORE.log_event(
+            "atividade_status",
+            {"atividade_id": atividade_id, **{k: fields[k] for k in ("status", "pipeline") if k in fields}},
+        )
+    return {"ok": True, "atividade": STORE.get_atividade(atividade_id)}
+
+
+def _range_bounds(ref: Optional[str], escala: str) -> tuple[str, str]:
+    """Limites ISO [início, fim) para a janela de tempo (mes/semana/trimestre/ano)."""
+    from datetime import timedelta
+
+    base = datetime.now()
+    if ref:
+        try:
+            base = datetime.fromisoformat(ref[:10])
+        except ValueError:
+            pass
+    base = base.replace(hour=0, minute=0, second=0, microsecond=0)
+    if escala == "semana":
+        start = base - timedelta(days=(base.weekday() + 1) % 7)  # semana começa no domingo
+        end = start + timedelta(days=7)
+    elif escala == "trimestre":
+        qm = ((base.month - 1) // 3) * 3 + 1
+        start = base.replace(month=qm, day=1)
+        nm, ny = qm + 3, base.year
+        if nm > 12:
+            nm, ny = nm - 12, ny + 1
+        end = start.replace(year=ny, month=nm, day=1)
+    elif escala == "ano":
+        start = base.replace(month=1, day=1)
+        end = start.replace(year=start.year + 1)
+    else:  # mes
+        start = base.replace(day=1)
+        end = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return start.isoformat(), end.isoformat()
+
+
+@app.get("/atividades/calendario")
+def atividades_calendario(
+    ref: Optional[str] = Query(default=None),
+    escala: str = Query(default="mes"),
+    responsavel: Optional[str] = Query(default=None),
+    tipo: Optional[str] = Query(default=None),
+    temperatura: Optional[str] = Query(default=None),
+    pipeline: Optional[str] = Query(default=None),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    inicio, fim = _range_bounds(ref, "semana" if escala == "semana" else "mes")
+    items = STORE.list_atividades(
+        responsavel=responsavel, tipo=tipo, temperatura=temperatura, pipeline=pipeline,
+        inicio_de=inicio, inicio_ate=fim, limit=2000,
+    )
+    return {"escala": escala, "inicio": inicio, "fim": fim, "atividades": items}
+
+
+@app.get("/atividades/timeline")
+def atividades_timeline(
+    ref: Optional[str] = Query(default=None),
+    escala: str = Query(default="mes"),
+    responsavel: Optional[str] = Query(default=None),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    esc = escala if escala in ("mes", "trimestre", "ano") else "mes"
+    inicio, fim = _range_bounds(ref, esc)
+    items = STORE.list_atividades(responsavel=responsavel, inicio_de=inicio, inicio_ate=fim, limit=5000)
+
+    grupos: dict[int, dict] = {}
+    sem_lead: list[dict] = []
+    for a in items:
+        rec = {
+            "id": a["id"], "inicio_em": a["inicio_em"], "tipo": a["tipo"],
+            "temperatura": a["temperatura"], "titulo": a["titulo"], "pipeline": a["pipeline"],
+        }
+        lid = a.get("lead_id")
+        if not lid:
+            sem_lead.append(rec)
+            continue
+        g = grupos.setdefault(lid, {
+            "lead_id": lid,
+            "empresa": a.get("cliente_empresa") or f"Lead #{lid}",
+            "status": a.get("cliente_status"),
+            "atividades": [],
+        })
+        g["atividades"].append(rec)
+        if a.get("pipeline") == "pos_venda" and not g["status"]:
+            g["status"] = "ganho"
+
+    oportunidades = []
+    for g in grupos.values():
+        datas = sorted([x["inicio_em"][:10] for x in g["atividades"] if x["inicio_em"]])
+        ciclo = 0
+        if len(datas) >= 2:
+            try:
+                ciclo = (datetime.fromisoformat(datas[-1]) - datetime.fromisoformat(datas[0])).days
+            except ValueError:
+                ciclo = 0
+        g["ciclo_dias"] = ciclo
+        g["status"] = g["status"] or "em_andamento"
+        oportunidades.append(g)
+    oportunidades.sort(key=lambda x: x["empresa"].lower())
+
+    return {"escala": esc, "inicio": inicio, "fim": fim, "oportunidades": oportunidades, "sem_lead": sem_lead}
 
 
 def start():
