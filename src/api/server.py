@@ -37,6 +37,7 @@ from ..playbooks.selector import select_playbooks_for_lead
 from ..scrapers.linkedin import parse_linkedin_payload
 from ..sdr.queue import SDRQueue
 from ..claude_agent.client import GeminiClient
+from ..enrichers.web_enricher import enrich_and_save, enrich_top_n
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -517,6 +518,66 @@ def sdr_metrics(
 ):
     _auth(x_api_token)
     return SDR.metrics(sdr_email=sdr_email)
+
+
+ENRICH_JOBS: dict[str, dict[str, Any]] = {}
+
+
+@app.post("/enrichment/top")
+def enrich_top(
+    n: int = Query(default=50),
+    min_score: int = Query(default=60),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    """Dispara enrichment web em background dos top N leads."""
+    _auth(x_api_token)
+    job_id = str(uuid4())
+    ENRICH_JOBS[job_id] = {
+        "id": job_id,
+        "status": "rodando",
+        "iniciado_em": datetime.now().isoformat(),
+        "concluido_em": None,
+        "n": n,
+        "enriquecidos": 0,
+        "erros": 0,
+        "resultados": [],
+    }
+
+    def _runner():
+        try:
+            result = enrich_top_n(n=n, min_score=min_score, store=STORE)
+            ENRICH_JOBS[job_id].update({
+                "status": "concluido",
+                "concluido_em": datetime.now().isoformat(),
+                "enriquecidos": result["enriquecidos"],
+                "erros": result["erros"],
+                "resultados": result["detalhes"],
+            })
+        except Exception as e:
+            logger.exception("Job enrichment %s falhou", job_id)
+            ENRICH_JOBS[job_id].update({
+                "status": "erro",
+                "erro": str(e),
+                "concluido_em": datetime.now().isoformat(),
+            })
+
+    threading.Thread(target=_runner, daemon=True).start()
+    return {"job_id": job_id, "status": "rodando"}
+
+
+@app.get("/enrichment/jobs/{job_id}")
+def enrich_job_status(job_id: str, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    if job_id not in ENRICH_JOBS:
+        raise HTTPException(404, "Job não encontrado")
+    return ENRICH_JOBS[job_id]
+
+
+@app.post("/enrichment/lead/{lead_id}")
+def enrich_lead(lead_id: int, x_api_token: Optional[str] = Header(default=None)):
+    """Enriquece um lead único sob demanda."""
+    _auth(x_api_token)
+    return enrich_and_save(lead_id, store=STORE)
 
 
 def start():

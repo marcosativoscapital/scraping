@@ -309,18 +309,31 @@
 
         <!-- ============== PLAYBOOKS ============== -->
         <section class="tab-panel" data-panel="playbooks">
-          <div class="card">
-            <div class="card__head">
-              <h2>Biblioteca de Playbooks</h2>
-              <p class="card__sub">10 abordagens estruturadas + tratamento de objeções.</p>
+          <div class="pb-header">
+            <div>
+              <h2 class="pb-header__title">📚 Biblioteca de Playbooks</h2>
+              <p class="pb-header__sub">10 trilhas de outbound prontas + 7 respostas pra objeções.</p>
             </div>
-            <div class="playbooks-grid" id="playbooks-grid"></div>
+            <div class="pb-filters">
+              <button class="chip-btn pb-filter is-active" data-cat="all">Todos</button>
+              <button class="chip-btn pb-filter" data-cat="risco_juridico">Risco</button>
+              <button class="chip-btn pb-filter" data-cat="previsibilidade_financeira">Financeiro</button>
+              <button class="chip-btn pb-filter" data-cat="novo_canal">Canal</button>
+              <button class="chip-btn pb-filter" data-cat="fragmentacao">Fragmentação</button>
+              <button class="chip-btn pb-filter" data-cat="compliance">Compliance</button>
+              <button class="chip-btn pb-filter" data-cat="vertical_betting">Betting</button>
+              <button class="chip-btn pb-filter" data-cat="vertical_cobranca">Cobrança</button>
+              <button class="chip-btn pb-filter" data-cat="vertical_saas">SaaS</button>
+              <button class="chip-btn pb-filter" data-cat="gatilho_evento">Evento</button>
+            </div>
           </div>
+
+          <div class="playbooks-grid" id="playbooks-grid"></div>
 
           <div class="card">
             <div class="card__head">
-              <h2>Tratamento de Objeções</h2>
-              <p class="card__sub">Respostas prontas pras 7 objeções mais comuns.</p>
+              <h2>🛡️ Tratamento de Objeções</h2>
+              <p class="card__sub">Cole na conversa quando ouvir uma dessas 7 frases.</p>
             </div>
             <div class="objecoes-list" id="objecoes-list"></div>
           </div>

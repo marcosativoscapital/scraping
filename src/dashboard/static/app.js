@@ -643,40 +643,140 @@
     });
   }
 
-  // ====== PLAYBOOKS (biblioteca) ======
+  // ====== PLAYBOOKS (biblioteca visual) ======
+  let _allPlaybooks = [];
+  let _currentCategoria = 'all';
+
+  const CANAL_ICONS = {
+    linkedin: '💼 LinkedIn',
+    email: '✉️ E-mail',
+    sms: '📱 SMS',
+    whatsapp: '🟢 WhatsApp',
+    voz: '📞 Voz',
+  };
+
+  function renderPlaybook(p) {
+    const seq = p.sequencia || [];
+    return `
+      <article class="pb" data-categoria="${p.categoria}" data-id="${p.id}">
+        <header class="pb__head">
+          <span class="pb__cat">${p.categoria.replace(/_/g, ' ')}</span>
+          <h3 class="pb__nome">${p.nome}</h3>
+          <p class="pb__gatilho">🎯 ${p.gatilho}</p>
+        </header>
+        <div class="pb__body">
+          <div class="pb__row">
+            <span class="pb__row-icon">🔥</span>
+            <div class="pb__row-content">
+              <span class="pb__row-label">Dor-alvo</span>
+              <div class="pb__row-value">${p.dor_alvo}</div>
+            </div>
+          </div>
+          <div class="pb__row">
+            <span class="pb__row-icon">👤</span>
+            <div class="pb__row-content">
+              <span class="pb__row-label">Decisor</span>
+              <div class="pb__row-value">${p.decisor_primario}${p.decisor_secundario ? ` &middot; <span class="muted">${p.decisor_secundario}</span>` : ''}</div>
+            </div>
+          </div>
+          <div class="pb__row">
+            <span class="pb__row-icon">📡</span>
+            <div class="pb__row-content">
+              <span class="pb__row-label">Sinais para aplicar</span>
+              <div class="pb__row-value">${(p.sinais_para_aplicar || []).slice(0, 3).map((s) => `<span class="badge" style="margin-right:4px;">${s}</span>`).join('')}</div>
+            </div>
+          </div>
+          <div class="pb__mensagem">${p.mensagem_central}</div>
+
+          <div class="pb__trail-head" onclick="this.closest('.pb').classList.toggle('is-open')">
+            <h4>🧭 Trilha de outbound</h4>
+            <span class="pb__trail-head__count">${seq.length} ${seq.length === 1 ? 'toque' : 'toques'} <span class="pb__trail-toggle">⌄</span></span>
+          </div>
+          <div class="pb__trail">
+            ${seq.map((s, i) => renderTouch(p.id, s, i)).join('')}
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderTouch(pbId, t, idx) {
+    const canal = CANAL_ICONS[t.canal] || t.canal;
+    const tplFull = (t.template_subject ? `Assunto: ${t.template_subject}\n\n` : '') + (t.template || t.template_body || '');
+    const tplEsc = tplFull.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return `
+      <div class="pb__touch">
+        <div class="pb__touch-num">${t.toque || idx + 1}</div>
+        <div class="pb__touch-body">
+          <div class="pb__touch-meta">
+            <span class="pb__touch-canal">${canal}</span>
+            <span class="pb__touch-timing">⏰ ${t.timing || ''}</span>
+          </div>
+          ${t.template_subject ? `<div class="pb__touch-subject">📧 ${t.template_subject}</div>` : ''}
+          <div class="pb__touch-body-text">${t.template || t.template_body || ''}</div>
+          <div class="pb__touch-actions">
+            <button class="pb__copy-btn" data-tpl="${tplEsc}">📋 Copiar template</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindPlaybookEvents() {
+    document.querySelectorAll('.pb__copy-btn').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const text = btn.dataset.tpl;
+        try {
+          await navigator.clipboard.writeText(text);
+          btn.classList.add('is-copied');
+          btn.textContent = '✓ Copiado!';
+          setTimeout(() => {
+            btn.classList.remove('is-copied');
+            btn.textContent = '📋 Copiar template';
+          }, 1800);
+        } catch (e2) {
+          toast('Não consegui copiar', 'error');
+        }
+      });
+    });
+    document.querySelectorAll('.pb-filter').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.pb-filter').forEach((b) => b.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        _currentCategoria = btn.dataset.cat;
+        renderPlaybookGrid();
+      });
+    });
+  }
+
+  function renderPlaybookGrid() {
+    const grid = document.getElementById('playbooks-grid');
+    let filtered = _allPlaybooks;
+    if (_currentCategoria !== 'all') {
+      filtered = _allPlaybooks.filter((p) => p.categoria === _currentCategoria || p.categoria.includes(_currentCategoria));
+    }
+    grid.innerHTML = filtered.length
+      ? filtered.map(renderPlaybook).join('')
+      : '<div class="empty">Nenhum playbook nessa categoria.</div>';
+    bindPlaybookEvents();
+  }
+
   async function loadPlaybooks() {
     try {
       const data = await api('/playbooks');
-      const grid = document.getElementById('playbooks-grid');
-      grid.innerHTML = (data.playbooks || []).map((p) => `
-        <div class="playbook-card">
-          <span class="playbook-card__categoria">${p.categoria}</span>
-          <div class="playbook-card__nome">${p.nome}</div>
-          <div class="playbook-card__gatilho">🎯 <strong>Gatilho:</strong> ${p.gatilho}</div>
-          <div class="playbook-card__dor"><strong>Dor:</strong> ${p.dor_alvo}</div>
-          <div class="playbook-card__dor"><strong>Decisor:</strong> ${p.decisor_primario}${p.decisor_secundario ? ` / ${p.decisor_secundario}` : ''}</div>
-          <div class="playbook-card__msg">${p.mensagem_central}</div>
-          <details style="margin-top:10px;">
-            <summary style="cursor:pointer; font-size:12px; color: var(--color-text-secondary);">Ver sequência (${p.sequencia?.length || 0} toques)</summary>
-            <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
-              ${(p.sequencia || []).map((s) => `
-                <div style="border-left: 2px solid var(--color-border-brand); padding: 6px 10px; font-size: 12px;">
-                  <strong>${s.toque}. ${s.canal.toUpperCase()}</strong> (${s.timing})<br>
-                  <span style="color: var(--color-text-secondary);">${s.template_subject ? `Subject: ${s.template_subject}<br>` : ''}${s.template || s.template_body || ''}</span>
-                </div>
-              `).join('')}
-            </div>
-          </details>
-        </div>
-      `).join('');
+      _allPlaybooks = data.playbooks || [];
+      renderPlaybookGrid();
 
       const obj = document.getElementById('objecoes-list');
       obj.innerHTML = (data.objecoes || []).map((o) => `
         <div class="objecao-card">
           <div class="objecao-card__titulo">"${o.titulo}"</div>
           <div class="objecao-card__resposta">${o.resposta}</div>
+          <button class="pb__copy-btn" data-tpl="${o.resposta.replace(/"/g, '&quot;')}" style="margin-top:8px;">📋 Copiar resposta</button>
         </div>
       `).join('');
+      bindPlaybookEvents();
     } catch (e) {
       console.error(e);
       toast(`Erro: ${e.message}`, 'error');
