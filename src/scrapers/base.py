@@ -35,8 +35,19 @@ class BaseScraper(ABC):
         self.raw_dir = raw_dir
         self.raw_dir.mkdir(parents=True, exist_ok=True)
 
-    def fetch_html(self, url: str, wait_for: str | None = None) -> str:
-        """Baixa HTML renderizado via Playwright. Resiliente a timeouts."""
+    def fetch_html(
+        self,
+        url: str,
+        wait_for: str | None = None,
+        spa_wait_ms: int = 0,
+    ) -> str:
+        """Baixa HTML renderizado via Playwright. Resiliente a timeouts.
+
+        Args:
+            url: página alvo
+            wait_for: seletor CSS opcional para esperar antes de extrair
+            spa_wait_ms: tempo extra de espera (ms) para SPAs (Bacen, etc.) hidratarem
+        """
         for attempt in range(self.max_retries):
             try:
                 with sync_playwright() as p:
@@ -47,22 +58,21 @@ class BaseScraper(ABC):
                         locale="pt-BR",
                     )
                     page = context.new_page()
-                    # 1) Navegação inicial — sem esperar full networkidle
                     page.goto(url, timeout=30000, wait_until="domcontentloaded")
-                    # 2) Tenta o seletor específico, mas sem fail-fast
                     if wait_for:
                         try:
                             page.wait_for_selector(wait_for, timeout=10000)
                         except Exception:
                             logger.debug("Seletor '%s' não encontrado, seguindo com DOM atual", wait_for)
-                    # 3) Espera curta para JS hidratar
                     try:
-                        page.wait_for_load_state("networkidle", timeout=8000)
+                        page.wait_for_load_state("networkidle", timeout=15000)
                     except Exception:
                         pass
+                    # Espera extra pra SPAs hidratarem o conteúdo dinamicamente
+                    if spa_wait_ms > 0:
+                        page.wait_for_timeout(spa_wait_ms)
                     html = page.content()
                     browser.close()
-                    # Sanity check — HTML mínimo viável
                     if len(html) < 500:
                         raise RuntimeError(f"HTML muito pequeno ({len(html)} bytes), pode ter sido bloqueado")
                     return html

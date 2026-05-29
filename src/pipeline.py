@@ -62,15 +62,19 @@ def run_pipeline(
             raw_results = scraper.scrape(limit=limit)
             p.update(t, completed=1)
 
-        # 2) Parse HTML → empresas via Claude
+        # 2) Parse HTML → empresas via Claude (ou JSON direto da API)
         empresas: list[dict] = []
         for raw in raw_results:
-            if raw.get("_tipo") == "raw_html":
-                console.print("  • Parseando HTML com Claude...")
+            tipo = raw.get("_tipo")
+            if tipo == "raw_html":
+                console.print("  • Parseando HTML com Gemini...")
                 parsed = extract_companies_from_html(
                     client, raw["_html"], vert, raw["_fonte"]
                 )
                 empresas.extend(parsed)
+            elif tipo == "json_direto":
+                console.print(f"  • Coleta direta via API: {len(raw['_empresas'])} empresas")
+                empresas.extend(raw["_empresas"])
             else:
                 empresas.append(raw)
 
