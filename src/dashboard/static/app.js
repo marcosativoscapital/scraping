@@ -888,6 +888,8 @@
   async function renderOppView() {
     const root = document.getElementById('opp-view-root');
     if (!root) return;
+    const periodoSel = document.getElementById('opp-f-periodo');
+    if (periodoSel) periodoSel.disabled = (_oppView === 'calendario' || _oppView === 'timeline');
     if (_oppView === 'calendario') { renderCalendario(); return; }
     if (_oppView === 'timeline') { renderTimeline(); return; }
     root.innerHTML = emptyState('Carregando…', '');
@@ -935,7 +937,7 @@
   }
 
   function atvCard(a) {
-    return `<button class="atv-card" data-atv="${a.id}" type="button">
+    return `<button class="atv-card" data-atv="${a.id}" data-pipe="${a.pipeline || ''}" draggable="true" type="button">
       <div class="atv-card__top">
         <span class="atv-card__date">${fmtDate(a.inicio_em)}</span>
         ${tempPill(a.temperatura)}
@@ -957,12 +959,37 @@
     items.forEach((a) => { (byPipe[a.pipeline] || (byPipe[a.pipeline] = [])).push(a); });
     root.innerHTML = '<div class="opp-kanban">' + PIPE_ORDER.map((k) => {
       const cards = byPipe[k] || [];
-      return `<div class="opp-col">
+      return `<div class="opp-col" data-pipe="${k}">
         <div class="opp-col__head"><span class="opp-col__title">${PIPE_LABEL[k]}</span><span class="opp-col__count">${cards.length}</span></div>
         ${cards.length ? cards.map(atvCard).join('') : '<div class="opp-col__empty">Vazio</div>'}
       </div>`;
     }).join('') + '</div>';
-    root.querySelectorAll('[data-atv]').forEach((el) => el.addEventListener('click', () => showAtividade(el.dataset.atv)));
+    root.querySelectorAll('.atv-card').forEach((card) => {
+      card.addEventListener('click', () => showAtividade(card.dataset.atv));
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', card.dataset.atv);
+        e.dataTransfer.effectAllowed = 'move';
+        card.classList.add('atv-card--dragging');
+      });
+      card.addEventListener('dragend', () => card.classList.remove('atv-card--dragging'));
+    });
+    root.querySelectorAll('.opp-col').forEach((col) => {
+      col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('opp-col--dragover'); });
+      col.addEventListener('dragleave', () => col.classList.remove('opp-col--dragover'));
+      col.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        col.classList.remove('opp-col--dragover');
+        const id = e.dataTransfer.getData('text/plain');
+        const pipe = col.dataset.pipe;
+        const card = root.querySelector(`.atv-card[data-atv="${id}"]`);
+        if (!id || !pipe || (card && card.dataset.pipe === pipe)) return;
+        try {
+          await api('/atividades/' + id, { method: 'PATCH', body: JSON.stringify({ pipeline: pipe }) });
+          toast('Movido para ' + PIPE_LABEL[pipe], 'success');
+          renderOppView();
+        } catch (err) { toast('Erro ao mover: ' + err.message, 'error'); }
+      });
+    });
   }
 
   async function ensureLeads() {
@@ -1276,7 +1303,10 @@
     root.innerHTML = controls + '<div class="opp-empty">Carregando…</div>';
     bindTlControls();
     try {
-      const data = await api(`/atividades/timeline?ref=${isoDate(_tlRef)}&escala=${_tlEscala}`);
+      const tlqs = calFilterQuery();
+      tlqs.set('ref', isoDate(_tlRef));
+      tlqs.set('escala', _tlEscala);
+      const data = await api('/atividades/timeline?' + tlqs.toString());
       const start = new Date(data.inicio);
       const end = new Date(data.fim);
       const span = (end - start) || 1;
@@ -1296,7 +1326,7 @@
         return `<div class="tl-row">
           <div class="tl-row__label">
             <div class="tl-row__emp">${escapeHtml(o.empresa)}</div>
-            <div class="tl-row__meta">Ciclo: ${o.ciclo_dias}d · <span class="tl-status tl-status--${o.status}">${statusLabel(o.status)}</span></div>
+            <div class="tl-row__meta">Ciclo: ${o.ciclo_dias}d · <select class="tl-status-sel tl-status--${o.status}" data-lead="${o.lead_id}" aria-label="Status da oportunidade">${['em_andamento', 'ganho', 'congelado', 'perdido'].map((s) => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${statusLabel(s)}</option>`).join('')}</select></div>
           </div>
           <div class="tl-track">
             <div class="tl-bar tl-bar--${o.status}" style="left:${barL}%;width:${Math.max(1, barR - barL)}%"></div>
@@ -1305,11 +1335,19 @@
         </div>`;
       }).join('');
       root.innerHTML = controls + `<div class="tl">
-        <div class="tl-row tl-row--axis"><div class="tl-row__label"></div><div class="tl-track tl-axis">${tlAxis(start, end, _tlEscala)}</div></div>
+        <div class="tl-row tl-row--axis"><div class="tl-row__label tl-row__label--axis">Cliente · ciclo</div><div class="tl-track tl-axis">${tlAxis(start, end, _tlEscala)}</div></div>
         ${rows}
       </div>`;
       bindTlControls();
       root.querySelectorAll('.tl-tick[data-atv]').forEach((el) => el.addEventListener('click', () => showAtividade(el.dataset.atv)));
+      root.querySelectorAll('.tl-status-sel').forEach((sel) => sel.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        try {
+          await api('/db/leads/' + sel.dataset.lead, { method: 'PATCH', body: JSON.stringify({ pipeline_status: sel.value }) });
+          toast('Status atualizado', 'success');
+          renderTimeline();
+        } catch (err) { toast('Erro: ' + err.message, 'error'); }
+      }));
     } catch (e) {
       root.innerHTML = controls + emptyState('Erro ao carregar', e.message);
       bindTlControls();

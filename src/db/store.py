@@ -264,6 +264,20 @@ class Store:
         with self.conn() as c:
             return [dict(r) for r in c.execute(sql, params).fetchall()]
 
+    def update_lead_fields(self, lead_id: int, fields: dict[str, Any]) -> bool:
+        """Atualiza campos pontuais de um lead por id (whitelist)."""
+        allowed = {"pipeline_status"}
+        sets = {k: v for k, v in fields.items() if k in allowed}
+        if not sets:
+            return False
+        sets["atualizado_em"] = datetime.now().isoformat()
+        clause = ", ".join(f"{k}=?" for k in sets)
+        with self.conn() as c:
+            cur = c.execute(
+                f"UPDATE leads SET {clause} WHERE id=?", (*sets.values(), lead_id)
+            )
+            return cur.rowcount > 0
+
     def leads_for_rescore(self, days_since: int = 7, max_score: int = 70) -> list[dict]:
         """Leads que precisam ser re-pontuados (score entre 40 e max_score, sem update há N dias)."""
         cutoff = datetime.now().timestamp() - days_since * 86400

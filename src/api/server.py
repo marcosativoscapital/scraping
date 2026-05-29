@@ -142,6 +142,27 @@ def db_lead_detail(lead_id: int, x_api_token: str | None = Header(default=None))
     return {"lead": dict(row), "outbound": [dict(o) for o in outbound]}
 
 
+PIPELINE_STATUS_VALIDO = {"em_andamento", "ganho", "congelado", "perdido"}
+
+
+class LeadPatch(BaseModel):
+    pipeline_status: Optional[str] = None
+
+
+@app.patch("/db/leads/{lead_id:int}")
+def db_lead_update(lead_id: int, payload: LeadPatch, x_api_token: str | None = Header(default=None)):
+    _auth(x_api_token)
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(400, "Nada para atualizar")
+    if "pipeline_status" in fields and fields["pipeline_status"] not in PIPELINE_STATUS_VALIDO:
+        raise HTTPException(400, f"pipeline_status inválido (use {sorted(PIPELINE_STATUS_VALIDO)})")
+    if not STORE.update_lead_fields(lead_id, fields):
+        raise HTTPException(404, "Lead não encontrado ou nada alterado")
+    STORE.log_event("lead_pipeline_status", {"lead_id": lead_id, **fields})
+    return {"ok": True, "lead_id": lead_id, **fields}
+
+
 @app.get("/db/export.csv")
 def db_export_csv(
     vertical: str | None = Query(default=None),
@@ -761,12 +782,18 @@ def atividades_timeline(
     ref: Optional[str] = Query(default=None),
     escala: str = Query(default="mes"),
     responsavel: Optional[str] = Query(default=None),
+    tipo: Optional[str] = Query(default=None),
+    temperatura: Optional[str] = Query(default=None),
+    pipeline: Optional[str] = Query(default=None),
     x_api_token: Optional[str] = Header(default=None),
 ):
     _auth(x_api_token)
     esc = escala if escala in ("mes", "trimestre", "ano") else "mes"
     inicio, fim = _range_bounds(ref, esc)
-    items = STORE.list_atividades(responsavel=responsavel, inicio_de=inicio, inicio_ate=fim, limit=5000)
+    items = STORE.list_atividades(
+        responsavel=responsavel, tipo=tipo, temperatura=temperatura, pipeline=pipeline,
+        inicio_de=inicio, inicio_ate=fim, limit=5000,
+    )
 
     grupos: dict[int, dict] = {}
     sem_lead: list[dict] = []

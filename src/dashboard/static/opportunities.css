@@ -230,3 +230,17 @@
 .tl-status--ganho { color: var(--color-fg-success-primary); }
 .tl-status--congelado { color: var(--color-utility-red-700); }
 .tl-status--perdido { color: var(--color-utility-slate-700); }
+
+/* Drag-and-drop no kanban */
+.atv-card[draggable="true"] { cursor: grab; }
+.atv-card--dragging { opacity: 0.45; cursor: grabbing; }
+.opp-col--dragover { border-color: var(--color-border-brand); background: var(--color-bg-brand-primary); }
+
+/* Select de status inline na timeline (herda cor de .tl-status--*) */
+.tl-status-sel {
+  appearance: none; -webkit-appearance: none; border: 0; background: transparent;
+  font-family: var(--font-body); font-weight: var(--font-semibold); font-size: var(--text-xs);
+  color: inherit; cursor: pointer; padding: 0 2px;
+}
+.tl-status-sel:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: var(--radius-sm); }
+.tl-row__label--axis { display: flex; align-items: center; font-size: var(--text-xs); color: var(--color-text-tertiary); font-weight: var(--font-semibold); }
