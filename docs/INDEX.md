@@ -19,6 +19,11 @@ Bem-vindo. Esta pasta contém toda a documentação do **Solve Scraper**, o moto
 
 ## 📄 Documentos disponíveis
 
+### 🔥 [`ICP_BIBLE.md`](./ICP_BIBLE.md) — **leitura obrigatória**
+Fonte canônica do projeto. Consolidação do Bible Book Solvefy CPaaS v2.1 + planilha ICP:
+produto, ICP, personas, dores, desejos, diferenciais, concorrência, mensagens por vertical.
+**Leitura: 12 min**
+
 ### [`APRESENTACAO.md`](./APRESENTACAO.md)
 Apresentação do produto: o que resolve, benefícios, ROI, visão estratégica.
 **Leitura: 5 min**

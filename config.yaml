@@ -1,37 +1,115 @@
 # ===========================================================
-# CONFIG — ICPs, scoring, mensagens-base por vertical
+# CONFIG — Solvefy CPaaS · KR2 (lead generation)
+# Alinhado com Bible Book Solvefy CPaaS v2.1 + ICP_Solvefy_CPaaS.xlsx
+# Fonte canônica de referência: docs/ICP_BIBLE.md
+# ===========================================================
+
+produto:
+  nome: "Solvefy CPaaS"
+  proposta_valor: "Infraestrutura de comunicação omnichannel: SMS + WhatsApp + RCS + Voz + E-mail em uma única API. Brasil-first, fatura em BRL, suporte humano em PT-BR."
+  diferenciais_core:
+    - "5 canais reais em 1 API (não 1 canal com 4 anexos)"
+    - "Fallback RCS → SMS nativo (único no Brasil)"
+    - "Pricing em BRL, contrato em português, sem IOF nem variação cambial"
+    - "Suporte humano em PT-BR incluso em todos os planos"
+    - "Onboarding em 1 dia útil — primeira mensagem em 24h"
+    - "Integração oficial em todos os canais (WhatsApp via Meta, RCS direto operadora)"
+    - "LGPD-first — arquitetura, não checklist"
+    - "Brasil-first com schema multi-moeda/idioma/região"
+  concorrentes:
+    twilio: "Líder global. Preço USD, suporte EN, contratação complexa."
+    infobip: "700+ conexões operadoras. Foco enterprise, ticket alto, localização BR rasa."
+    sinch: "Escala global. Sem presença real BR, suporte EN."
+    zenvia: "Marca conhecida BR. Saindo do CPaaS para virar SaaS — instabilidade estratégica."
+    take_blip: "Forte em WhatsApp BSP. Raso em SMS/Voz/RCS/E-mail, ticket alto."
+    middleware_caseiro: "Controle total. R$ 10–20k/integração, 8–15h/sem manutenção, sem SLA."
+
+# ===========================================================
+# ICP GERAL (recorte do Bible Book)
+# ===========================================================
+
+icp_geral:
+  porte_funcionarios: "10 a 1.000"
+  budget_comunicacao_mes: "R$ 1.000 a R$ 15.000"
+  segmentos_alvo:
+    - e-commerce
+    - fintechs
+    - gaming
+    - varejo
+    - saúde
+    - educação
+    - saas_b2b
+    - serviços
+  decisores_trio:
+    inicia: "Head of Marketing / Growth"
+    valida: "Tech Lead / CTO / Head de Engenharia"
+    aprova: "Head Ops / CFO / COO"
+  ciclo_de_compra:
+    pme: "2-4 semanas"
+    mid_market: "4-8 semanas (com integração via API)"
+    enterprise: "até 12 semanas"
+  sinais_positivos:
+    - "Opera 2+ canais ativos (SMS, WhatsApp, E-mail)"
+    - "Possui ≥ 1 dev dedicado"
+    - "Budget R$ 1k–15k/mês em comunicação"
+    - "Insatisfeita com vendor atual (custo, complexidade, instabilidade)"
+    - "Já usou ou usa API não-oficial do WhatsApp"
+    - "Setor financeiro veta ferramentas em USD"
+    - "Quer reduzir número de fornecedores"
+    - "Tem produto digital próprio ou e-commerce ativo"
+    - "Investe em RD Station, HubSpot, ERPs"
+    - "Produz campanhas semanalmente ou mensalmente"
+    - "Operou com Twilio/Infobip e sentiu o atrito"
+  sinais_negativos:
+    - "Menos de 10 funcionários"
+    - "Apenas 1 canal sem intenção de expandir"
+    - "Sem equipe técnica mínima"
+    - "Foco exclusivo em helpdesk/atendimento"
+    - "Startup sem produto validado"
+
+# ===========================================================
+# VERTICAIS DO KR2 (recortes priorizados pelo Ítalo)
 # ===========================================================
 
 verticais:
 
   betting:
-    nome: "Apostas Esportivas (Bets)"
+    nome: "Apostas Esportivas / Gaming"
+    mapping_bible: "Gaming → bets reguladas SPA/MF"
     fontes:
       - tipo: spa_mf
         url: "https://www.gov.br/fazenda/pt-br/assuntos/secretaria-de-premios-e-apostas/empresas-autorizadas"
-        descricao: "Lista oficial SPA/MF de empresas autorizadas"
+        descricao: "Lista oficial SPA/MF de empresas autorizadas (188 em maio/2026)"
     icp:
       porte_minimo: "media"
       decisores_alvo:
         - "Head of Product"
         - "CTO"
         - "Head of CRM"
-        - "Diretor de Operações"
         - "Head of Engineering"
+        - "Diretor de Operações"
+        - "Head de Marketing"
       gatilhos:
-        - "licenciamento recente"
-        - "lançamento de novo produto"
-        - "promoção sazonal"
-        - "queda em entrega de OTP"
-      dor_principal: "OTP e notificações em pico de jogo decisivo, com SLA enterprise"
-    mensagem_central: "Pipe ANATEL com 20 anos, 99% de entrega, suporte humano em pico. 20% mais barato que sua infra atual."
+        - "Licenciamento recente (autorização SPA/MF)"
+        - "Lançamento de novo produto (cassino, esportes ao vivo)"
+        - "Promoção sazonal / campeonato decisivo"
+        - "Queda em entrega de OTP"
+        - "Notícia de banimento de WhatsApp não-oficial"
+      casos_de_uso:
+        - "OTP de login (volume massivo em pico)"
+        - "Notificação de eventos esportivos ao vivo"
+        - "Retenção / re-engajamento de inativos"
+        - "Recuperação de saldo / depósito"
+      dor_principal: "OTP e notificações com SLA em pico de jogo. Risco de banimento WhatsApp não-oficial. Cambial em fornecedor global."
+    mensagem_central: "5 canais oficiais em 1 API. WhatsApp via Meta, RCS direto operadora, fallback automático SMS. Fatura BRL, suporte humano PT-BR. Aguenta pico de jogo, zero risco de banimento."
 
   pagamentos:
-    nome: "Instituições de Pagamento"
+    nome: "Instituições de Pagamento (Bacen)"
+    mapping_bible: "Fintechs → IPs reguladas pelo Bacen"
     fontes:
       - tipo: bacen
         url: "https://www.bcb.gov.br/estabilidadefinanceira/relacaoinstituicoes"
-        descricao: "Lista oficial Bacen de IPs autorizadas"
+        descricao: "Lista oficial Bacen de IPs autorizadas (174 em fim 2024)"
     icp:
       porte_minimo: "pequena_grande"
       decisores_alvo:
@@ -41,19 +119,25 @@ verticais:
         - "Head of Anti-Fraude"
         - "VP de Tecnologia"
       gatilhos:
-        - "crescimento de TPV"
-        - "novo produto"
-        - "incidente de fraude"
-        - "obrigação regulatória nova"
-      dor_principal: "OTP transacional, alertas anti-fraude, compliance Bacen/LGPD"
-    mensagem_central: "OTP e alertas anti-fraude com SLA enterprise. Compliance Bacen/LGPD documentado. APIs robustas para integração rápida."
+        - "Crescimento de TPV"
+        - "Novo produto (PIX, crédito, antecipação)"
+        - "Incidente de fraude reportado"
+        - "Nova obrigação regulatória do Bacen"
+      casos_de_uso:
+        - "OTP transacional (login + 2FA)"
+        - "Alertas anti-fraude em tempo real"
+        - "Comunicação regulatória obrigatória"
+        - "IVR de atendimento receptivo"
+      dor_principal: "OTP com SLA enterprise, alertas anti-fraude, compliance Bacen + LGPD em fornecedor único. Auditoria centralizada."
+    mensagem_central: "OTP transacional e alertas anti-fraude com SLA único. Compliance Bacen + LGPD centralizado, fatura BRL e contrato em PT. API robusta para integração em 1 dia útil."
 
   cobranca:
     nome: "Recuperação de Crédito e Cobrança"
+    mapping_bible: "Serviços + SaaS B2B (régua de cobrança)"
     fontes:
       - tipo: ohub
         url: "https://www.ohub.com.br/empresas/recuperacao-de-credito"
-        descricao: "Diretório oHub de recuperação de crédito"
+        descricao: "Diretório oHub de recuperação de crédito (200+ empresas)"
       - tipo: abemd
         url: "https://www.abemd.org.br/associados"
         descricao: "Associados ABEMD"
@@ -62,23 +146,30 @@ verticais:
       decisores_alvo:
         - "Diretor de Operações"
         - "COO"
-        - "Head de Régua"
-        - "Sócio"
-        - "Diretor de Cobrança"
+        - "Head de Régua / Head de Cobrança"
+        - "Sócio / Dono"
+        - "Head de Tecnologia"
       gatilhos:
-        - "alta inadimplência"
-        - "expansão da régua digital"
-        - "troca de fornecedor de comunicação"
-        - "novo cliente grande"
-      dor_principal: "Régua de cobrança multi-canal com alta entrega e custo baixo"
-    mensagem_central: "Régua de cobrança com 98% de entrega no SMS. Custo 20% menor. Integração com seus sistemas em dias, não meses."
+        - "Inadimplência alta no portfólio"
+        - "Expansão da régua digital"
+        - "Troca de fornecedor de comunicação"
+        - "Novo cliente grande no portfólio"
+        - "Reclamação no Procon sobre comunicação"
+      casos_de_uso:
+        - "SMS de régua de cobrança em massa"
+        - "WhatsApp para acordo (Meta oficial)"
+        - "IVR de cobrança receptiva"
+        - "Notificação de acordo / pagamento confirmado"
+      dor_principal: "Régua multicanal com 98% entrega em SMS, custo unitário previsível, integração com sistemas de cobrança em dias."
+    mensagem_central: "Régua de cobrança em SMS + WhatsApp + Voz pelo mesmo endpoint. 98% entrega no SMS, fatura única BRL, integra com seu CRM/Discador em dias, não meses."
 
   saas_b2b:
     nome: "SaaS B2B / B2B2C"
+    mapping_bible: "SaaS B2B → produtos que precisam de notificação multi-canal para usuário final"
     fontes:
       - tipo: abstartups
         url: "https://abstartups.com.br/brasil/"
-        descricao: "Mapeamento ABStartups"
+        descricao: "Mapeamento ABStartups (3.650 startups · 82,2% B2B/B2B2C · 39,2% SaaS = ~1.430 SaaS B2B)"
       - tipo: crunchbase
         url: "https://api.crunchbase.com/v4/"
         descricao: "Crunchbase API (com chave)"
@@ -89,25 +180,62 @@ verticais:
         - "Head of Product"
         - "VP Engineering"
         - "Head of Platform"
+        - "Head of Engineering"
       gatilhos:
-        - "Série A ou B recente"
-        - "expansão para novo país"
-        - "lançamento de produto multi-tenant"
-        - "churn alto por comunicação"
-      dor_principal: "API CPaaS multi-tenant para embutir no produto sem virar telecom"
-    mensagem_central: "API CPaaS multi-tenant para você embutir SMS/voz no seu produto sem virar telecom. Documentação clara, suporte humano, preço competitivo."
+        - "Série A ou B recente (anúncio)"
+        - "Expansão para novo país"
+        - "Lançamento de produto multi-tenant"
+        - "Churn alto por má comunicação"
+        - "Vagas abertas para platform engineering"
+      casos_de_uso:
+        - "Notificações multi-canal para usuário final"
+        - "OTP transacional do produto"
+        - "Embed de comunicação dentro do SaaS"
+        - "Multi-tenancy para ISVs / agências"
+      dor_principal: "API CPaaS multi-tenant para embutir comunicação no produto sem virar telecom. Custo escalável em BRL."
+    mensagem_central: "API CPaaS multi-tenant para embutir SMS/WhatsApp/RCS/Voz/E-mail no seu produto sem virar telecom. Pricing BRL com forecast 12 meses, fallback RCS→SMS nativo, suporte humano PT-BR."
 
 # ===========================================================
-# CRITÉRIOS DE SCORE (0-100)
+# CRITÉRIOS DE SCORE (0-100) — fit ICP
 # ===========================================================
 
 scoring:
   pesos:
-    fit_vertical: 25           # empresa pertence à vertical?
-    porte: 15                  # tem o porte mínimo?
-    decisor_identificado: 20   # conseguimos identificar o decisor certo?
-    gatilho_ativo: 25          # tem gatilho recente?
-    contato_disponivel: 15     # temos e-mail / linkedin?
+    fit_vertical: 20           # empresa pertence à vertical?
+    porte: 15                  # 10-1.000 funcionários
+    multi_canal_ativo: 15      # já opera 2+ canais de comunicação
+    decisor_identificado: 15   # conseguimos identificar o decisor certo (trio)
+    gatilho_ativo: 20          # tem gatilho/sinal recente
+    contato_disponivel: 15     # temos e-mail / linkedin do decisor
+  penalidades:
+    menos_10_funcionarios: -30
+    apenas_1_canal_sem_intencao: -20
+    sem_equipe_tecnica: -15
+    foco_exclusivo_helpdesk: -25
+
+# ===========================================================
+# OUT OF SCOPE — não classificar como prospect CPaaS
+# ===========================================================
+
+out_of_scope:
+  - "Apenas CRM ou pipeline comercial"
+  - "Helpdesk/ticketing puro"
+  - "E-mail marketing isolado"
+  - "Infraestrutura de telecom própria (operadora)"
+  - "Concorrente direto da Solvefy Marketing (não cross-sell de CPaaS)"
+
+# ===========================================================
+# OBJEÇÕES COMUNS (preparar tratamento no outbound)
+# ===========================================================
+
+objecoes_comuns:
+  - "Já temos uma solução que funciona mais ou menos"
+  - "A integração vai demorar, dev ocupado"
+  - "Mais um custo fixo, precisa validar ROI"
+  - "CFO bloqueou novas SaaS no trimestre"
+  - "Plataformas que prometem tudo e entregam pouco"
+  - "API não-oficial está funcionando, deixa assim"
+  - "Sem dev disponível agora"
 
 # ===========================================================
 # LLM (Gemini)
@@ -117,8 +245,8 @@ llm:
   provider: "gemini"
   modelo: "gemini-2.5-flash"
   max_tokens: 4096
-  temperatura_parse: 0.0       # determinístico para parsing
-  temperatura_personalizacao: 0.5  # mais criativo para gatilhos
+  temperatura_parse: 0.0
+  temperatura_personalizacao: 0.5
 
 # ===========================================================
 # SCRAPING
