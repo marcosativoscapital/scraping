@@ -833,6 +833,37 @@
     reagendada: 'Reagendada', cancelada: 'Cancelada',
   };
   const PIPE_ORDER = ['potencial_cliente', 'leads', 'oportunidades', 'pos_venda'];
+  const TIPO_ICON = { ligacao: 'i-phone', videochamada: 'i-video', email: 'i-mail', visita: 'i-flag', almoco: 'i-flag', personalizado: 'i-target' };
+  function tipoIcon(t) { return TIPO_ICON[t] || 'i-flag'; }
+
+  // Tooltip flutuante dos ticks da timeline (uma instância reutilizável no body)
+  let _tlTipEl = null;
+  function tlTip() {
+    if (!_tlTipEl) {
+      _tlTipEl = document.createElement('div');
+      _tlTipEl.className = 'tl-tip';
+      _tlTipEl.hidden = true;
+      document.body.appendChild(_tlTipEl);
+    }
+    return _tlTipEl;
+  }
+  function hideTlTip() { if (_tlTipEl) _tlTipEl.hidden = true; }
+  function showTlTip(el) {
+    const tip = tlTip();
+    tip.innerHTML = `
+      <div class="tl-tip__time">${escapeHtml(el.dataset.hora || '')}</div>
+      <div class="tl-tip__row"><span class="temp-dot temp-dot--${el.dataset.temp || 'none'}"></span><span class="tl-tip__client">${escapeHtml(el.dataset.emp || '')}</span></div>
+      <div class="tl-tip__row"><svg class="tl-tip__ico" width="16" height="16"><use href="#${el.dataset.ico || 'i-flag'}"/></svg><span class="tl-tip__act">${escapeHtml(el.dataset.titulo || '')}</span></div>`;
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let left = r.left + r.width / 2 - tw / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+    let top = r.top - th - 8;
+    if (top < 8) top = r.bottom + 8;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
 
   let _oppView = 'lista';
   let _oppBound = false;
@@ -1318,18 +1349,23 @@
         return;
       }
       const rows = ops.map((o) => {
-        const ds = o.atividades.map((a) => a.inicio_em).filter(Boolean).sort();
-        const barL = ds.length ? pct(ds[0]) : 0;
-        const barR = ds.length ? pct(ds[ds.length - 1]) : 0;
+        const sorted = o.atividades.filter((a) => a.inicio_em).slice()
+          .sort((a, b) => (a.inicio_em < b.inicio_em ? -1 : (a.inicio_em > b.inicio_em ? 1 : 0)));
+        const barL = sorted.length ? pct(sorted[0].inicio_em) : 0;
+        const barR = sorted.length ? pct(sorted[sorted.length - 1].inicio_em) : 0;
+        const stage = sorted.length ? (sorted[0].titulo || 'Primeiro contato') : '';
         const ticks = o.atividades.filter((a) => a.inicio_em).map((a) =>
-          `<span class="tl-tick temp-dot--${a.temperatura || 'none'}" style="left:${pct(a.inicio_em)}%" data-atv="${a.id}" title="${escapeHtml(a.titulo || '')}"></span>`).join('');
+          `<span class="tl-tick temp-dot--${a.temperatura || 'none'}" style="left:${pct(a.inicio_em)}%" data-atv="${a.id}" data-hora="${escapeHtml(fmtTimeOnly(a.inicio_em))}" data-emp="${escapeHtml(o.empresa)}" data-titulo="${escapeHtml(a.titulo || '')}" data-temp="${a.temperatura || 'none'}" data-ico="${tipoIcon(a.tipo)}"></span>`).join('');
         return `<div class="tl-row">
           <div class="tl-row__label">
             <div class="tl-row__emp">${escapeHtml(o.empresa)}</div>
             <div class="tl-row__meta">Ciclo: ${o.ciclo_dias}d · <select class="tl-status-sel tl-status--${o.status}" data-lead="${o.lead_id}" aria-label="Status da oportunidade">${['em_andamento', 'ganho', 'congelado', 'perdido'].map((s) => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${statusLabel(s)}</option>`).join('')}</select></div>
           </div>
           <div class="tl-track">
+            <div class="tl-bar-rest" style="left:${barR}%;width:${Math.max(0, 100 - barR)}%"></div>
             <div class="tl-bar tl-bar--${o.status}" style="left:${barL}%;width:${Math.max(1, barR - barL)}%"></div>
+            ${o.status === 'ganho' ? `<span class="tl-won" style="left:${barR}%"><svg width="13" height="13"><use href="#i-star"/></svg>Negócio ganho</span>` : ''}
+            ${stage ? `<span class="tl-stage" style="left:${barL}%">${escapeHtml(stage)}</span>` : ''}
             ${ticks}
           </div>
         </div>`;
@@ -1340,6 +1376,11 @@
       </div>`;
       bindTlControls();
       root.querySelectorAll('.tl-tick[data-atv]').forEach((el) => el.addEventListener('click', () => showAtividade(el.dataset.atv)));
+      const tlEl = root.querySelector('.tl');
+      if (tlEl) {
+        tlEl.addEventListener('mouseover', (e) => { const t = e.target.closest('.tl-tick'); if (t) showTlTip(t); });
+        tlEl.addEventListener('mouseout', (e) => { const t = e.target.closest('.tl-tick'); if (t) hideTlTip(); });
+      }
       root.querySelectorAll('.tl-status-sel').forEach((sel) => sel.addEventListener('change', async (e) => {
         e.stopPropagation();
         try {
