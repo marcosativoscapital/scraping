@@ -670,6 +670,7 @@ def atividades_list(
     status: Optional[str] = Query(default=None),
     lead_id: Optional[int] = Query(default=None),
     limit: int = Query(default=500, le=2000),
+    order: str = Query(default="asc"),
     x_api_token: Optional[str] = Header(default=None),
 ):
     _auth(x_api_token)
@@ -684,6 +685,7 @@ def atividades_list(
         inicio_de=inicio_de,
         inicio_ate=inicio_ate,
         limit=limit,
+        order=order,
     )
     return {"atividades": items, "count": len(items)}
 

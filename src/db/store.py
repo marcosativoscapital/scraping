@@ -416,6 +416,7 @@ class Store:
         inicio_de: str | None = None,
         inicio_ate: str | None = None,
         limit: int = 500,
+        order: str = "asc",
     ) -> list[dict]:
         sql = [
             """SELECT a.*, l.empresa AS cliente_empresa, l.decisor_nome AS cliente_decisor,
@@ -440,7 +441,8 @@ class Store:
         if inicio_ate:
             sql.append(" AND a.inicio_em < ?")
             params.append(inicio_ate)
-        sql.append(" ORDER BY COALESCE(a.inicio_em, a.criado_em) ASC LIMIT ?")
+        direction = "DESC" if str(order).lower() == "desc" else "ASC"
+        sql.append(f" ORDER BY COALESCE(a.inicio_em, a.criado_em) {direction} LIMIT ?")
         params.append(limit)
         with self.conn() as c:
             return [dict(r) for r in c.execute("".join(sql), params).fetchall()]

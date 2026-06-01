@@ -924,13 +924,16 @@
     if (_oppView === 'calendario') { renderCalendario(); return; }
     if (_oppView === 'timeline') { renderTimeline(); return; }
     root.innerHTML = emptyState('Carregando…', '');
+    const view = _oppView;
     try {
       const q = oppQuery();
       const data = await api('/atividades' + (q ? '?' + q : ''));
+      if (_oppView !== view) return; // view trocou durante o fetch
       const items = data.atividades || [];
-      if (_oppView === 'lista') renderLista(items);
+      if (view === 'lista') renderLista(items);
       else renderQuadro(items);
     } catch (e) {
+      if (_oppView !== view) return;
       root.innerHTML = emptyState('Erro ao carregar', e.message);
       toast('Erro: ' + e.message, 'error');
     }
@@ -1269,6 +1272,7 @@
       qs.set('ref', isoDate(_calRef));
       qs.set('escala', _calEscala);
       const data = await api('/atividades/calendario?' + qs.toString());
+      if (_oppView !== 'calendario') return; // saiu da view durante o fetch
       const byDay = {};
       (data.atividades || []).forEach((a) => { const k = (a.inicio_em || '').slice(0, 10); (byDay[k] || (byDay[k] = [])).push(a); });
       root.innerHTML = controls + (_calEscala === 'semana' ? calWeek(byDay) : calMonth(byDay));
@@ -1338,6 +1342,7 @@
       tlqs.set('ref', isoDate(_tlRef));
       tlqs.set('escala', _tlEscala);
       const data = await api('/atividades/timeline?' + tlqs.toString());
+      if (_oppView !== 'timeline') return; // saiu da view durante o fetch
       const start = new Date(data.inicio);
       const end = new Date(data.fim);
       const span = (end - start) || 1;
@@ -1395,6 +1400,21 @@
     }
   }
 
+  // Na 1ª abertura, abre Calendário/Timeline no mês da atividade mais recente
+  let _oppDateInit = false;
+  async function initDefaultMonth() {
+    if (_oppDateInit) return;
+    _oppDateInit = true;
+    try {
+      const data = await api('/atividades?order=desc&limit=1');
+      const a = (data.atividades || [])[0];
+      if (a && a.inicio_em) {
+        const d = new Date(a.inicio_em);
+        if (!isNaN(d)) { _calRef = d; _tlRef = d; }
+      }
+    } catch (e) { /* mantém o mês atual */ }
+  }
+
   async function loadOportunidades() {
     if (!_oppBound) {
       _oppBound = true;
@@ -1409,6 +1429,7 @@
         document.getElementById(id).addEventListener('change', renderOppView));
       document.getElementById('opp-nova').addEventListener('click', openNovaAtividade);
     }
+    await initDefaultMonth();
     renderOppView();
   }
 
