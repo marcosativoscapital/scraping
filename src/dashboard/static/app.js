@@ -104,7 +104,47 @@
   }
 
   // ====== OVERVIEW ======
+  let _ckBound = false;
+  async function loadCockpit() {
+    let d;
+    try { d = await api('/sales/cockpit'); } catch (e) { return; }
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('ck-hoje', d.hoje); set('ck-atrasadas', d.atrasadas); set('ck-aguardando', d.aguardando_resposta);
+    set('ck-taxa', (d.taxa_resposta || 0) + '%'); set('ck-quentes', d.quentes_a_contatar);
+
+    const ql = document.getElementById('ck-quentes-list');
+    if (ql) ql.innerHTML = (d.quentes_list || []).slice(0, 8).map((q) => `
+      <div class="ck-row">
+        <div class="ck-row__main">
+          <span class="ck-row__name">${escapeHtml(q.empresa || '—')}</span>
+          <span class="ck-row__sub">${verticalLabel(q.vertical)} · ${escapeHtml(q.decisor_nome || 'sem decisor')}</span>
+        </div>
+        <span class="badge badge--success">${q.score_icp}</span>
+      </div>`).join('') || '<div class="empty">Nada pendente por aqui.</div>';
+
+    const ag = document.getElementById('ck-agenda');
+    const items = [];
+    (d.atrasadas_list || []).slice(0, 4).forEach((a) => items.push(`<div class="ck-row"><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(a.titulo || '—')}</span><span class="ck-row__sub">${escapeHtml(a.cliente || '—')} · ${fmtDate(a.inicio_em)}</span></div><span class="badge badge--warning">atrasada</span></div>`));
+    (d.hoje_list || []).slice(0, 4).forEach((a) => items.push(`<div class="ck-row"><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(a.titulo || '—')}</span><span class="ck-row__sub">${escapeHtml(a.cliente || '—')} · ${fmtDate(a.inicio_em)}</span></div><span class="badge badge--brand">hoje</span></div>`));
+    (d.respostas_list || []).slice(0, 4).forEach((r) => items.push(`<div class="ck-row"><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(r.cliente || '—')}</span><span class="ck-row__sub">respondeu · ${escapeHtml(r.canal || '')}</span></div><span class="badge badge--success">resposta</span></div>`));
+    if (ag) ag.innerHTML = items.join('') || '<div class="empty">Sem pendências de agenda.</div>';
+
+    const PIPE = [['potencial_cliente', 'Potencial cliente'], ['leads', 'Leads'], ['oportunidades', 'Oportunidades'], ['pos_venda', 'Pós-venda']];
+    const mx = Math.max(1, ...PIPE.map(([k]) => (d.funil || {})[k] || 0));
+    const fn = document.getElementById('ck-funil');
+    if (fn) fn.innerHTML = PIPE.map(([k, label]) => `<div class="ck-funil__row"><span class="ck-funil__label">${label}</span><span class="bucket__bar"><span class="bucket__fill" style="width:${(((d.funil || {})[k] || 0) / mx) * 100}%"></span></span><span class="ck-funil__count">${(d.funil || {})[k] || 0}</span></div>`).join('');
+
+    if (!_ckBound) {
+      _ckBound = true;
+      document.querySelectorAll('.cockpit-kpi[data-go]').forEach((b) => b.addEventListener('click', () => {
+        const t = document.querySelector(`.nav-item[data-tab="${b.dataset.go}"]`);
+        if (t) t.click();
+      }));
+    }
+  }
+
   async function loadOverview() {
+    loadCockpit();
     try {
       const stats = await api('/stats');
       document.getElementById('m-total').textContent = stats.total.toLocaleString('pt-BR');

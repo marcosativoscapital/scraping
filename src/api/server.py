@@ -117,6 +117,14 @@ def stats(x_api_token: str | None = Header(default=None)):
     return STORE.stats()
 
 
+@app.get("/sales/cockpit")
+def sales_cockpit(x_api_token: str | None = Header(default=None)):
+    """Painel 'Meu dia' do vendedor: hoje, atrasadas, aguardando resposta, quentes, funil."""
+    _auth(x_api_token)
+    dia_de, dia_ate = _period_bounds("hoje")
+    return STORE.cockpit(dia_de, dia_ate)
+
+
 @app.get("/db/leads")
 def db_leads(
     vertical: str | None = Query(default=None),

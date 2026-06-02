@@ -294,3 +294,29 @@
 .ob-item__body { font-size: var(--text-sm); color: var(--color-text-secondary); line-height: 1.45; white-space: pre-wrap; }
 .ob-item__erro { font-size: var(--text-xs); color: var(--color-fg-error-primary); }
 .ob-item__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+/* ============ Cockpit "Meu dia" ============ */
+.cockpit { display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px; }
+.cockpit__head h2 { font-family: var(--font-display); font-size: var(--text-xl); letter-spacing: -0.01em; margin: 0; color: var(--color-text-primary); }
+.cockpit__metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.cockpit-kpi {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start; cursor: pointer; text-align: left;
+  background: var(--color-bg-primary); border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-xl); padding: 16px; box-shadow: var(--shadow-xs); transition: border-color .12s;
+}
+.cockpit-kpi:hover { border-color: var(--color-border-brand); }
+.cockpit-kpi:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.cockpit-kpi__v { font-family: var(--font-display); font-size: var(--text-display-xs); font-weight: var(--font-bold); color: var(--color-text-primary); line-height: 1; }
+.cockpit-kpi__l { font-size: var(--text-xs); color: var(--color-text-tertiary); font-weight: var(--font-semibold); }
+.cockpit-kpi--alert .cockpit-kpi__v { color: var(--color-utility-red-600); }
+.cockpit-kpi--hot .cockpit-kpi__v { color: var(--color-fg-brand-primary); }
+.ck-list { display: flex; flex-direction: column; }
+.ck-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border-secondary); }
+.ck-row:last-child { border-bottom: 0; }
+.ck-row__main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ck-row__name { font-weight: var(--font-semibold); font-size: var(--text-sm); color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ck-row__sub { font-size: var(--text-xs); color: var(--color-text-tertiary); }
+.ck-funil { display: flex; flex-direction: column; gap: 10px; }
+.ck-funil__row { display: grid; grid-template-columns: 130px 1fr 44px; align-items: center; gap: 10px; }
+.ck-funil__label { font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--color-text-secondary); }
+.ck-funil__count { font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--color-text-primary); text-align: right; }

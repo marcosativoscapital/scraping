@@ -336,6 +336,76 @@ class Store:
                 "ultimos": [dict(r) for r in ultimos],
             }
 
+    def cockpit(self, dia_de: str, dia_ate: str) -> dict[str, Any]:
+        """Painel operacional do vendedor ("Meu dia"): o que fazer agora."""
+        PIPE = ["potencial_cliente", "leads", "oportunidades", "pos_venda"]
+        with self.conn() as c:
+            def scalar(q: str, p: tuple = ()) -> int:
+                return c.execute(q, p).fetchone()[0] or 0
+
+            hoje = scalar(
+                "SELECT COUNT(*) FROM atividades WHERE inicio_em>=? AND inicio_em<?",
+                (dia_de, dia_ate),
+            )
+            atrasadas = scalar(
+                "SELECT COUNT(*) FROM atividades WHERE inicio_em<? AND status IN ('a_fazer','reagendada')",
+                (dia_de,),
+            )
+            aguardando = scalar("SELECT COUNT(*) FROM outbound_messages WHERE status='enviado'")
+            respondidos = scalar("SELECT COUNT(*) FROM outbound_messages WHERE status='respondido'")
+            enviados = scalar("SELECT COUNT(*) FROM outbound_messages WHERE status IN ('enviado','respondido')")
+            quentes = scalar(
+                "SELECT COUNT(*) FROM leads WHERE COALESCE(score_icp,0)>=70 AND COALESCE(sdr_status,'a_contatar')='a_contatar'"
+            )
+            funil_raw = {
+                r["pipeline"]: r["n"]
+                for r in c.execute("SELECT pipeline, COUNT(*) AS n FROM atividades GROUP BY pipeline").fetchall()
+            }
+            funil = {k: funil_raw.get(k, 0) for k in PIPE}
+
+            def rows(q: str, p: tuple = ()) -> list[dict]:
+                return [dict(r) for r in c.execute(q, p).fetchall()]
+
+            hoje_list = rows(
+                """SELECT a.id, a.titulo, a.tipo, a.inicio_em, a.temperatura, a.pipeline,
+                          l.empresa AS cliente
+                   FROM atividades a LEFT JOIN leads l ON a.lead_id=l.id
+                   WHERE a.inicio_em>=? AND a.inicio_em<? ORDER BY a.inicio_em LIMIT 30""",
+                (dia_de, dia_ate),
+            )
+            atrasadas_list = rows(
+                """SELECT a.id, a.titulo, a.tipo, a.inicio_em, l.empresa AS cliente
+                   FROM atividades a LEFT JOIN leads l ON a.lead_id=l.id
+                   WHERE a.inicio_em<? AND a.status IN ('a_fazer','reagendada')
+                   ORDER BY a.inicio_em DESC LIMIT 20""",
+                (dia_de,),
+            )
+            quentes_list = rows(
+                """SELECT id, empresa, vertical, score_icp, decisor_nome, decisor_cargo, email_provavel
+                   FROM leads WHERE COALESCE(score_icp,0)>=70 AND COALESCE(sdr_status,'a_contatar')='a_contatar'
+                   ORDER BY score_icp DESC LIMIT 20"""
+            )
+            aguardando_list = rows(
+                """SELECT m.id, m.canal, m.enviado_em, l.empresa AS cliente
+                   FROM outbound_messages m LEFT JOIN leads l ON m.lead_id=l.id
+                   WHERE m.status='enviado' ORDER BY m.enviado_em DESC LIMIT 20"""
+            )
+            respostas_list = rows(
+                """SELECT m.id, m.canal, m.respondido_em, l.empresa AS cliente
+                   FROM outbound_messages m LEFT JOIN leads l ON m.lead_id=l.id
+                   WHERE m.status='respondido' ORDER BY m.respondido_em DESC LIMIT 20"""
+            )
+
+        taxa = round(100 * respondidos / enviados, 1) if enviados else 0.0
+        return {
+            "hoje": hoje, "atrasadas": atrasadas, "aguardando_resposta": aguardando,
+            "respondidos": respondidos, "enviados": enviados, "taxa_resposta": taxa,
+            "quentes_a_contatar": quentes, "funil": funil,
+            "hoje_list": hoje_list, "atrasadas_list": atrasadas_list,
+            "quentes_list": quentes_list, "aguardando_list": aguardando_list,
+            "respostas_list": respostas_list,
+        }
+
     # ====== Outbound ======
 
     def save_outbound(self, lead_id: int, canal: str, mensagem: str) -> int:

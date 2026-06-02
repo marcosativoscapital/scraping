@@ -119,6 +119,34 @@
 
         <!-- ============== OVERVIEW ============== -->
         <section class="tab-panel is-active" data-panel="overview">
+          <div class="cockpit" id="cockpit">
+            <div class="cockpit__head">
+              <h2>Meu dia</h2>
+              <p class="card__sub">O que precisa da sua atenção agora.</p>
+            </div>
+            <div class="cockpit__metrics">
+              <button class="cockpit-kpi" data-go="oportunidades"><span class="cockpit-kpi__v" id="ck-hoje">—</span><span class="cockpit-kpi__l">Atividades hoje</span></button>
+              <button class="cockpit-kpi cockpit-kpi--alert" data-go="oportunidades"><span class="cockpit-kpi__v" id="ck-atrasadas">—</span><span class="cockpit-kpi__l">Atrasadas</span></button>
+              <button class="cockpit-kpi" data-go="outbound"><span class="cockpit-kpi__v" id="ck-aguardando">—</span><span class="cockpit-kpi__l">Aguardando resposta</span></button>
+              <button class="cockpit-kpi" data-go="outbound"><span class="cockpit-kpi__v" id="ck-taxa">—</span><span class="cockpit-kpi__l">Taxa de resposta</span></button>
+              <button class="cockpit-kpi cockpit-kpi--hot" data-go="leads"><span class="cockpit-kpi__v" id="ck-quentes">—</span><span class="cockpit-kpi__l">Quentes a contatar</span></button>
+            </div>
+            <div class="grid-2">
+              <div class="card">
+                <div class="card__head"><h2>Quentes a contatar</h2><p class="card__sub">Score ≥ 70 ainda sem contato</p></div>
+                <div id="ck-quentes-list" class="ck-list"></div>
+              </div>
+              <div class="card">
+                <div class="card__head"><h2>Agenda &amp; respostas</h2><p class="card__sub">Atrasadas, hoje e quem respondeu</p></div>
+                <div id="ck-agenda" class="ck-list"></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card__head"><h2>Funil de oportunidades</h2><p class="card__sub">Atividades por estágio</p></div>
+              <div id="ck-funil" class="ck-funil"></div>
+            </div>
+          </div>
+
           <div class="metrics-grid">
             <div class="metric">
               <span class="metric__label">Leads coletados</span>
