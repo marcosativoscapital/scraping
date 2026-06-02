@@ -75,4 +75,17 @@ def score_lead(client: ClaudeClient, lead: dict) -> dict:
 
 Calcule score total (máximo 100), breakdown por critério, sinais detectados e recomendação."""
 
-    return client.extract_json(prompt, system=SYSTEM_SCORER, schema_hint=schema)
+    result = client.extract_json(prompt, system=SYSTEM_SCORER, schema_hint=schema) or {}
+    # Validação pós-LLM: score em [0,100] e recomendação dentro do enum
+    try:
+        sc = int(float(result.get("score") or 0))
+    except (TypeError, ValueError):
+        sc = 0
+    result["score"] = max(0, min(100, sc))
+    if result.get("recomendacao") not in ("ativar_outbound", "nutrir", "descartar"):
+        result["recomendacao"] = (
+            "ativar_outbound" if result["score"] >= 60
+            else "nutrir" if result["score"] >= 40
+            else "descartar"
+        )
+    return result

@@ -162,8 +162,9 @@ class Store:
 
     @contextmanager
     def conn(self):
-        c = sqlite3.connect(self.db_path)
+        c = sqlite3.connect(self.db_path, timeout=10)
         c.row_factory = sqlite3.Row
+        c.execute("PRAGMA busy_timeout=5000")  # espera locks em vez de falhar (multiusuário)
         try:
             yield c
             c.commit()
@@ -172,6 +173,7 @@ class Store:
 
     def _init_schema(self) -> None:
         with self.conn() as c:
+            c.execute("PRAGMA journal_mode=WAL")  # leituras concorrentes durante escrita
             c.executescript(SCHEMA)
             # Migrations idempotentes para colunas adicionais
             existing = {r["name"] for r in c.execute("PRAGMA table_info(leads)").fetchall()}

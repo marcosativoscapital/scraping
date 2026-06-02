@@ -61,4 +61,10 @@ def classify_company(client: ClaudeClient, empresa_data: dict) -> dict:
 
 Identifique a vertical, segmento específico, porte e fit com o ICP geral da Solvefy CPaaS."""
 
-    return client.extract_json(prompt, system=SYSTEM_CLASSIFIER, schema_hint=schema)
+    result = client.extract_json(prompt, system=SYSTEM_CLASSIFIER, schema_hint=schema) or {}
+    # Validação pós-LLM: mantém só enums conhecidos (senão deixa o pipeline usar o fallback)
+    if result.get("vertical") not in ("betting", "pagamentos", "cobranca", "saas_b2b", "outros"):
+        result.pop("vertical", None)
+    if result.get("porte_estimado") not in ("pequena", "media", "grande", "enterprise"):
+        result.pop("porte_estimado", None)
+    return result
