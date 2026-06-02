@@ -338,3 +338,35 @@
 .auth-user__name { font-size: var(--text-xs); font-weight: var(--font-semibold); color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .auth-logout { appearance: none; background: none; border: 0; cursor: pointer; font-size: var(--text-xs); font-weight: var(--font-semibold); color: var(--color-fg-brand-primary); }
 .auth-logout:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+/* ============ Lembretes (sino na topbar) ============ */
+.reminders { position: relative; }
+.reminders__bell {
+  position: relative; appearance: none; cursor: pointer; width: 38px; height: 38px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-bg-primary); border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-md); color: var(--color-text-secondary);
+}
+.reminders__bell:hover { border-color: var(--color-border-brand); color: var(--color-text-primary); }
+.reminders__bell:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.reminders__count {
+  position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: var(--radius-full); background: var(--color-utility-red-600);
+  color: var(--color-text-primary-on-brand); font-size: 11px; font-weight: var(--font-bold);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.reminders__panel {
+  position: absolute; top: 46px; right: 0; width: 340px; max-height: 60vh; overflow: auto; z-index: 1500;
+  background: var(--color-bg-primary); border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-xs); padding: 8px;
+}
+.reminders__panel[hidden] { display: none; }
+.reminders__head { font-family: var(--font-display); font-weight: var(--font-semibold); font-size: var(--text-sm); color: var(--color-text-primary); padding: 6px 8px; }
+.reminders__empty { padding: 20px; text-align: center; color: var(--color-text-tertiary); font-size: var(--text-sm); }
+.rem-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; cursor: pointer; background: none; border: 0; border-radius: var(--radius-md); padding: 8px; }
+.rem-item:hover { background: var(--color-bg-secondary); }
+.rem-item:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+.rem-item__txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.rem-item__t { font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rem-item__s { font-size: var(--text-xs); color: var(--color-text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atv-cal { display: flex; gap: 8px; flex-wrap: wrap; }

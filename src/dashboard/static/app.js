@@ -1260,6 +1260,7 @@
           <div class="atv-detail__row">${tempPill(a.temperatura)} ${pipeBadge(a.pipeline)}</div>
           ${a.descricao ? `<div><div class="atv-detail__label">Descrição</div><div class="atv-detail__desc">${escapeHtml(a.descricao)}</div></div>` : ''}
           ${tags.length ? `<div><div class="atv-detail__label">Tags</div><div class="atv-detail__tags">${tags.map((t) => `<span class="atv-tag">${escapeHtml(t)}</span>`).join('')}</div></div>` : ''}
+          ${a.inicio_em ? `<div class="atv-cal"><a class="btn btn--secondary btn--sm" target="_blank" rel="noopener" href="${googleCalLink(a)}">Adicionar ao Google Agenda</a><button class="btn btn--secondary btn--sm" id="atv-ics" type="button">Baixar .ics</button></div>` : ''}
           <div class="atv-grid">
             <div class="atv-field"><label for="atv-d-pipeline">Pipeline</label><select class="input" id="atv-d-pipeline">${pipeOptions(a.pipeline)}</select></div>
             <div class="atv-field"><label for="atv-d-status">Status</label><select class="input" id="atv-d-status">${statusOptions(a.status)}</select></div>
@@ -1267,6 +1268,8 @@
           <div class="atv-form__foot"><button class="btn btn--primary" id="atv-d-save">Salvar alterações</button></div>
         </div>`;
       showModal(a.titulo || 'Atividade', html);
+      const _ics = document.getElementById('atv-ics');
+      if (_ics) _ics.addEventListener('click', () => downloadIcs(id));
       document.getElementById('atv-d-save').addEventListener('click', async (e) => {
         const btn = e.currentTarget;
         btn.disabled = true;
@@ -1554,11 +1557,63 @@
   document.getElementById('modal-close').addEventListener('click', closeModal);
   document.querySelector('.modal__backdrop').addEventListener('click', closeModal);
 
+  // ====== LEMBRETES (sino) + Google Agenda ======
+  const REM_LABEL = { atrasada: 'Atrasada', hoje: 'Hoje', sem_resposta: 'Follow-up', resposta: 'Resposta', quente_sem_contato: 'Quente' };
+  const REM_BADGE = { atrasada: 'badge badge--warning', hoje: 'badge badge--brand', sem_resposta: 'badge', resposta: 'badge badge--success', quente_sem_contato: 'badge badge--success' };
+  let _remBound = false;
+  async function loadReminders() {
+    let d;
+    try { d = await api('/sales/reminders'); } catch (e) { return; }
+    const countEl = document.getElementById('reminders-count');
+    if (countEl) { countEl.textContent = d.count; countEl.hidden = !d.count; }
+    const panel = document.getElementById('reminders-panel');
+    if (panel) {
+      panel.innerHTML = (d.itens || []).length
+        ? `<div class="reminders__head">Lembretes (${d.count})</div>` + d.itens.slice(0, 40).map((it) =>
+            `<button class="rem-item" data-acao="${it.acao}"><span class="${REM_BADGE[it.tipo] || 'badge'}">${REM_LABEL[it.tipo] || it.tipo}</span><span class="rem-item__txt"><span class="rem-item__t">${escapeHtml(it.titulo)}</span><span class="rem-item__s">${escapeHtml(it.sub || '')}</span></span></button>`).join('')
+        : '<div class="reminders__empty">Tudo em dia por aqui.</div>';
+      panel.querySelectorAll('.rem-item[data-acao]').forEach((b) => b.addEventListener('click', () => {
+        const t = document.querySelector(`.nav-item[data-tab="${b.dataset.acao}"]`);
+        if (t) t.click();
+        panel.hidden = true;
+      }));
+    }
+    if (!_remBound) {
+      _remBound = true;
+      const bell = document.getElementById('btn-reminders');
+      if (bell) bell.addEventListener('click', (e) => { e.stopPropagation(); const p = document.getElementById('reminders-panel'); if (p) p.hidden = !p.hidden; });
+      document.addEventListener('click', (e) => { const r = document.getElementById('reminders'); const p = document.getElementById('reminders-panel'); if (r && p && !r.contains(e.target)) p.hidden = true; });
+    }
+  }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function googleCalLink(a) {
+    if (!a.inicio_em) return '#';
+    const start = new Date(a.inicio_em);
+    if (isNaN(start)) return '#';
+    const end = new Date(start.getTime() + (a.duracao_min || 30) * 60000);
+    const z = (d) => `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}T${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}00Z`;
+    const p = new URLSearchParams({ action: 'TEMPLATE', text: a.titulo || 'Atividade', dates: `${z(start)}/${z(end)}`, details: a.descricao || '', location: a.cliente_empresa || '' });
+    return 'https://calendar.google.com/calendar/render?' + p.toString();
+  }
+  async function downloadIcs(id) {
+    try {
+      const r = await fetch(`${API_URL}/atividades/${id}/calendar.ics`, { headers: { 'X-API-Token': API_TOKEN } });
+      if (!r.ok) throw new Error(await r.text());
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = `atividade-${id}.ics`; link.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { toast('Erro ao gerar .ics: ' + e.message, 'error'); }
+  }
+
   // ====== AUTH (login Google, com fallback ao token) ======
   function enterApp() {
     checkHealth();
     loadOverview();
+    loadReminders();
     setInterval(checkHealth, 10000);
+    setInterval(loadReminders, 60000);
     refreshAuthFooter();
   }
   async function refreshAuthFooter() {

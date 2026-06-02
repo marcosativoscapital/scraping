@@ -120,6 +120,13 @@
           <p class="topbar__subtitle" id="page-subtitle">Operação KR2 · CPaaS · 4 verticais</p>
         </div>
         <div class="topbar__actions">
+          <div class="reminders" id="reminders">
+            <button class="reminders__bell" id="btn-reminders" aria-label="Lembretes">
+              <svg width="20" height="20"><use href="#i-bell"/></svg>
+              <span class="reminders__count" id="reminders-count" hidden>0</span>
+            </button>
+            <div class="reminders__panel" id="reminders-panel" hidden></div>
+          </div>
           <button class="btn btn--secondary" id="btn-refresh">
             <svg width="18" height="18"><use href="#i-zap"/></svg>
             Atualizar

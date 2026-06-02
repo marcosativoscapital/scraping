@@ -77,3 +77,12 @@ def test_classifier_enum():
     assert "vertical" not in c and "porte_estimado" not in c
     c2 = classifier.classify_company(_FakeClient({"vertical": "betting", "porte_estimado": "media"}), {})
     assert c2["vertical"] == "betting" and c2["porte_estimado"] == "media"
+
+
+def test_reminders_shape():
+    s = _store()
+    s.upsert_lead({"vertical": "betting", "empresa": "QuenteX", "score_icp": 85, "sdr_status": "a_contatar"})
+    r = s.reminders("2026-01-01T00:00:00", "2026-01-02T00:00:00")
+    assert "count" in r and isinstance(r["itens"], list)
+    assert r["count"] >= 1  # lead quente sem contato deve aparecer
+    assert all("tipo" in it and "acao" in it for it in r["itens"])

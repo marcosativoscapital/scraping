@@ -172,6 +172,53 @@ def sales_cockpit(x_api_token: str | None = Header(default=None)):
     return STORE.cockpit(dia_de, dia_ate)
 
 
+@app.get("/sales/reminders")
+def sales_reminders(x_api_token: str | None = Header(default=None)):
+    """Feed de lembretes acionáveis (sino): atrasadas, hoje, follow-ups, respostas, quentes."""
+    _auth(x_api_token)
+    dia_de, dia_ate = _period_bounds("hoje")
+    return STORE.reminders(dia_de, dia_ate)
+
+
+def _build_ics(a: dict) -> str:
+    from datetime import datetime, timedelta
+
+    def fmt(dt) -> str:
+        return dt.strftime("%Y%m%dT%H%M%S")
+
+    def esc(s) -> str:
+        return str(s or "").replace("\\", "\\\\").replace("\n", "\\n").replace(",", "\\,").replace(";", "\\;")
+
+    ini = (a.get("inicio_em") or "")[:16]
+    try:
+        start = datetime.fromisoformat(ini) if ini else datetime.now()
+    except ValueError:
+        start = datetime.now()
+    end = start + timedelta(minutes=int(a.get("duracao_min") or 30))
+    linhas = [
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Solvefy//SolveScraper//PT", "BEGIN:VEVENT",
+        f"UID:atividade-{a.get('id')}@solvescraper", f"DTSTART:{fmt(start)}", f"DTEND:{fmt(end)}",
+        f"SUMMARY:{esc(a.get('titulo') or 'Atividade')}",
+        f"LOCATION:{esc(a.get('cliente_empresa'))}",
+        f"DESCRIPTION:{esc(a.get('descricao'))}",
+        "END:VEVENT", "END:VCALENDAR",
+    ]
+    return "\r\n".join(linhas) + "\r\n"
+
+
+@app.get("/atividades/{atividade_id:int}/calendar.ics")
+def atividade_ics(atividade_id: int, x_api_token: str | None = Header(default=None)):
+    _auth(x_api_token)
+    a = STORE.get_atividade(atividade_id)
+    if not a:
+        raise HTTPException(404, "Atividade não encontrada")
+    return StreamingResponse(
+        iter([_build_ics(a)]),
+        media_type="text/calendar",
+        headers={"Content-Disposition": f"attachment; filename=atividade-{atividade_id}.ics"},
+    )
+
+
 @app.get("/db/leads")
 def db_leads(
     vertical: str | None = Query(default=None),

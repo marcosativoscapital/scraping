@@ -418,6 +418,44 @@ class Store:
             "respostas_list": respostas_list,
         }
 
+    def reminders(self, dia_de: str, dia_ate: str, dias_followup: int = 3) -> dict[str, Any]:
+        """Lembretes acionáveis ("o que cobrar agora") a partir dos dados existentes."""
+        corte_fu = (datetime.now() - timedelta(days=dias_followup)).isoformat()
+        itens: list[dict] = []
+        with self.conn() as c:
+            def rows(q: str, p: tuple = ()) -> list[dict]:
+                return [dict(r) for r in c.execute(q, p).fetchall()]
+
+            for a in rows(
+                """SELECT a.id, a.titulo, l.empresa FROM atividades a LEFT JOIN leads l ON a.lead_id=l.id
+                   WHERE a.inicio_em<? AND a.status IN ('a_fazer','reagendada') ORDER BY a.inicio_em DESC LIMIT 30""",
+                (dia_de,),
+            ):
+                itens.append({"tipo": "atrasada", "titulo": a["titulo"] or "Atividade", "sub": a["empresa"] or "—", "acao": "oportunidades", "atividade_id": a["id"]})
+            for a in rows(
+                """SELECT a.id, a.titulo, l.empresa FROM atividades a LEFT JOIN leads l ON a.lead_id=l.id
+                   WHERE a.inicio_em>=? AND a.inicio_em<? AND a.status IN ('a_fazer','reagendada') ORDER BY a.inicio_em LIMIT 30""",
+                (dia_de, dia_ate),
+            ):
+                itens.append({"tipo": "hoje", "titulo": a["titulo"] or "Atividade", "sub": a["empresa"] or "—", "acao": "oportunidades", "atividade_id": a["id"]})
+            for m in rows(
+                """SELECT m.lead_id, l.empresa FROM outbound_messages m LEFT JOIN leads l ON m.lead_id=l.id
+                   WHERE m.status='enviado' AND COALESCE(m.enviado_em,'')<? ORDER BY m.enviado_em LIMIT 30""",
+                (corte_fu,),
+            ):
+                itens.append({"tipo": "sem_resposta", "titulo": "Sem resposta — faça follow-up", "sub": m["empresa"] or "—", "acao": "outbound", "lead_id": m["lead_id"]})
+            for m in rows(
+                """SELECT m.lead_id, l.empresa FROM outbound_messages m LEFT JOIN leads l ON m.lead_id=l.id
+                   WHERE m.status='respondido' ORDER BY m.respondido_em DESC LIMIT 20"""
+            ):
+                itens.append({"tipo": "resposta", "titulo": "Respondeu — agende reunião", "sub": m["empresa"] or "—", "acao": "oportunidades", "lead_id": m["lead_id"]})
+            for q in rows(
+                """SELECT id, empresa FROM leads WHERE COALESCE(score_icp,0)>=70
+                   AND COALESCE(sdr_status,'a_contatar')='a_contatar' ORDER BY score_icp DESC LIMIT 30"""
+            ):
+                itens.append({"tipo": "quente_sem_contato", "titulo": "Lead quente sem contato", "sub": q["empresa"] or "—", "acao": "leads", "lead_id": q["id"]})
+        return {"count": len(itens), "itens": itens}
+
     # ====== Outbound ======
 
     def save_outbound(self, lead_id: int, canal: str, mensagem: str) -> int:
