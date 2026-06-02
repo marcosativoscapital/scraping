@@ -147,7 +147,8 @@ code {
   z-index: 10;
 }
 .topbar__title h1 {
-  font-size: var(--text-lg);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
   font-weight: var(--font-semibold);
   margin: 0;
   letter-spacing: -0.01em;
@@ -237,7 +238,8 @@ code {
 .card__head { margin-bottom: 20px; }
 .card__head h2 {
   margin: 0;
-  font-size: var(--text-md);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
   font-weight: var(--font-semibold);
   letter-spacing: -0.01em;
 }
@@ -562,7 +564,7 @@ textarea.input {
   padding: 18px 24px;
   border-bottom: 1px solid var(--color-border-secondary);
 }
-.modal__head h3 { margin: 0; font-size: var(--text-md); font-weight: var(--font-semibold); }
+.modal__head h3 { margin: 0; font-family: var(--font-display); font-size: var(--text-lg); font-weight: var(--font-semibold); letter-spacing: -0.01em; }
 .modal__body { padding: 24px; overflow: auto; font-size: var(--text-sm); }
 
 /* ====== TOAST ====== */

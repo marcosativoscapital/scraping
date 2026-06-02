@@ -6,6 +6,8 @@
   <title>Solve Scraper · Solvefy CPaaS</title>
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="app.css" />
+  <link rel="stylesheet" href="opportunities.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <!-- SVG sprite -->
@@ -26,8 +28,34 @@
       <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7-7 7 7"/></symbol>
       <symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></symbol>
       <symbol id="i-logo" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="12"/><path d="m10 16 4 4 8-8"/></symbol>
+      <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+      <symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></symbol>
+      <symbol id="i-chev-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></symbol>
+      <symbol id="i-chev-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+      <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
+      <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+      <symbol id="i-video" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></symbol>
+      <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.67" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4h12l-2 4 2 4H5"/></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.2l1-5.8L3.5 9.2l5.9-.9L12 3z"/></symbol>
     </defs>
   </svg>
+
+  <!-- Login gate (Google) — aparece só quando GOOGLE_CLIENT_ID está configurado -->
+  <div class="login-gate" id="login-gate" hidden>
+    <div class="login-card">
+      <div class="login-card__brand">
+        <span class="brand-mark"><svg width="24" height="24"><use href="#i-logo"/></svg></span>
+        <span class="brand-name">Solve Scraper</span>
+      </div>
+      <h1>Entrar</h1>
+      <p>Acesse com sua conta Google da empresa.</p>
+      <div id="gbtn" class="login-gbtn"></div>
+      <p class="login-err" id="login-err"></p>
+    </div>
+  </div>
 
   <div class="app">
     <!-- Sidebar -->
@@ -59,6 +87,10 @@
           <svg width="20" height="20"><use href="#i-zap"/></svg>
           <span>SDR</span>
         </button>
+        <button class="nav-item" data-tab="oportunidades">
+          <svg width="20" height="20"><use href="#i-target"/></svg>
+          <span>Oportunidades</span>
+        </button>
         <button class="nav-item" data-tab="playbooks">
           <svg width="20" height="20"><use href="#i-radar"/></svg>
           <span>Playbooks</span>
@@ -73,6 +105,7 @@
         </button>
       </nav>
       <div class="sidebar__footer">
+        <div class="auth-user" id="auth-user"></div>
         <div class="status-pill" id="server-status">
           <span class="dot"></span><span class="label">Verificando…</span>
         </div>
@@ -87,6 +120,13 @@
           <p class="topbar__subtitle" id="page-subtitle">Operação KR2 · CPaaS · 4 verticais</p>
         </div>
         <div class="topbar__actions">
+          <div class="reminders" id="reminders">
+            <button class="reminders__bell" id="btn-reminders" aria-label="Lembretes">
+              <svg width="20" height="20"><use href="#i-bell"/></svg>
+              <span class="reminders__count" id="reminders-count" hidden>0</span>
+            </button>
+            <div class="reminders__panel" id="reminders-panel" hidden></div>
+          </div>
           <button class="btn btn--secondary" id="btn-refresh">
             <svg width="18" height="18"><use href="#i-zap"/></svg>
             Atualizar
@@ -102,6 +142,34 @@
 
         <!-- ============== OVERVIEW ============== -->
         <section class="tab-panel is-active" data-panel="overview">
+          <div class="cockpit" id="cockpit">
+            <div class="cockpit__head">
+              <h2>Meu dia</h2>
+              <p class="card__sub">O que precisa da sua atenção agora.</p>
+            </div>
+            <div class="cockpit__metrics">
+              <button class="cockpit-kpi" data-go="oportunidades"><span class="cockpit-kpi__v" id="ck-hoje">—</span><span class="cockpit-kpi__l">Atividades hoje</span></button>
+              <button class="cockpit-kpi cockpit-kpi--alert" data-go="oportunidades"><span class="cockpit-kpi__v" id="ck-atrasadas">—</span><span class="cockpit-kpi__l">Atrasadas</span></button>
+              <button class="cockpit-kpi" data-go="outbound"><span class="cockpit-kpi__v" id="ck-aguardando">—</span><span class="cockpit-kpi__l">Aguardando resposta</span></button>
+              <button class="cockpit-kpi" data-go="outbound"><span class="cockpit-kpi__v" id="ck-taxa">—</span><span class="cockpit-kpi__l">Taxa de resposta</span></button>
+              <button class="cockpit-kpi cockpit-kpi--hot" data-go="leads"><span class="cockpit-kpi__v" id="ck-quentes">—</span><span class="cockpit-kpi__l">Quentes a contatar</span></button>
+            </div>
+            <div class="grid-2">
+              <div class="card">
+                <div class="card__head"><h2>Quentes a contatar</h2><p class="card__sub">Score ≥ 70 ainda sem contato</p></div>
+                <div id="ck-quentes-list" class="ck-list"></div>
+              </div>
+              <div class="card">
+                <div class="card__head"><h2>Agenda &amp; respostas</h2><p class="card__sub">Atrasadas, hoje e quem respondeu</p></div>
+                <div id="ck-agenda" class="ck-list"></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card__head"><h2>Funil de oportunidades</h2><p class="card__sub">Atividades por estágio</p></div>
+              <div id="ck-funil" class="ck-funil"></div>
+            </div>
+          </div>
+
           <div class="metrics-grid">
             <div class="metric">
               <span class="metric__label">Leads coletados</span>
@@ -276,6 +344,22 @@
             </div>
             <div id="outbound-messages" class="outbound-messages"></div>
           </div>
+
+          <div class="card">
+            <div class="card__head">
+              <h2>Fila de envio</h2>
+              <p class="card__sub">Aprove, envie (e-mail via SMTP) e acompanhe o status de cada mensagem.</p>
+            </div>
+            <div class="ob-filters" id="ob-filters">
+              <button class="ob-chip is-active" data-obf="">Todos</button>
+              <button class="ob-chip" data-obf="rascunho">Rascunho</button>
+              <button class="ob-chip" data-obf="aprovado">Aprovado</button>
+              <button class="ob-chip" data-obf="enviado">Enviado</button>
+              <button class="ob-chip" data-obf="respondido">Respondido</button>
+              <button class="ob-chip" data-obf="rejeitado">Rejeitado</button>
+            </div>
+            <div id="outbound-queue" class="ob-queue"></div>
+          </div>
         </section>
 
         <!-- ============== SDR ============== -->
@@ -395,6 +479,75 @@
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <!-- ============== OPORTUNIDADES ============== -->
+        <section class="tab-panel" data-panel="oportunidades">
+          <div class="opp">
+            <div class="opp__banner">
+              <svg width="22" height="22"><use href="#i-target"/></svg>
+              <h2>Atividades</h2>
+            </div>
+
+            <div class="opp__viewbar">
+              <div class="opp__views" role="tablist" id="opp-views">
+                <button class="opp-view is-active" data-view="lista" role="tab">Lista</button>
+                <button class="opp-view" data-view="calendario" role="tab">Calendário</button>
+                <button class="opp-view" data-view="timeline" role="tab">Timeline</button>
+                <button class="opp-view" data-view="quadro" role="tab">Quadro</button>
+              </div>
+              <button class="btn btn--primary" id="opp-nova">
+                <svg width="18" height="18"><use href="#i-plus"/></svg>
+                Nova atividade
+              </button>
+            </div>
+
+            <div class="opp__filters">
+              <div class="filter-group">
+                <label class="filter-label">Período</label>
+                <select class="input" id="opp-f-periodo">
+                  <option value="todos">Todos</option>
+                  <option value="hoje">Hoje</option>
+                  <option value="semana">Esta semana</option>
+                  <option value="mes">Este mês</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Tipo</label>
+                <select class="input" id="opp-f-tipo">
+                  <option value="">Todos</option>
+                  <option value="ligacao">Ligação</option>
+                  <option value="videochamada">Videochamada</option>
+                  <option value="email">E-mail</option>
+                  <option value="visita">Visita</option>
+                  <option value="almoco">Almoço</option>
+                  <option value="personalizado">Personalizado</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Temperatura</label>
+                <select class="input" id="opp-f-temp">
+                  <option value="">Todas</option>
+                  <option value="muito_quente">Muito quente</option>
+                  <option value="quente">Quente</option>
+                  <option value="frio">Frio</option>
+                  <option value="muito_frio">Muito frio</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Pipeline</label>
+                <select class="input" id="opp-f-pipeline">
+                  <option value="">Todos</option>
+                  <option value="potencial_cliente">Potencial cliente</option>
+                  <option value="leads">Leads</option>
+                  <option value="oportunidades">Oportunidades</option>
+                  <option value="pos_venda">Pós-venda</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="opp-view-root"></div>
           </div>
         </section>
 

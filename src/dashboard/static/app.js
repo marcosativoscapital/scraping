@@ -85,6 +85,7 @@
     if (tab === 'settings') loadSettings();
     if (tab === 'sdr') loadSDR();
     if (tab === 'playbooks') loadPlaybooks();
+    if (tab === 'oportunidades') loadOportunidades();
   }
 
   // ====== HEALTH ======
@@ -103,7 +104,47 @@
   }
 
   // ====== OVERVIEW ======
+  let _ckBound = false;
+  async function loadCockpit() {
+    let d;
+    try { d = await api('/sales/cockpit'); } catch (e) { return; }
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('ck-hoje', d.hoje); set('ck-atrasadas', d.atrasadas); set('ck-aguardando', d.aguardando_resposta);
+    set('ck-taxa', (d.taxa_resposta || 0) + '%'); set('ck-quentes', d.quentes_a_contatar);
+
+    const ql = document.getElementById('ck-quentes-list');
+    if (ql) ql.innerHTML = (d.quentes_list || []).slice(0, 8).map((q) => `
+      <div class="ck-row">
+        <div class="ck-row__main">
+          <span class="ck-row__name">${escapeHtml(q.empresa || '—')}</span>
+          <span class="ck-row__sub">${verticalLabel(q.vertical)} · ${escapeHtml(q.decisor_nome || 'sem decisor')}</span>
+        </div>
+        <span class="badge badge--success">${q.score_icp}</span>
+      </div>`).join('') || '<div class="empty">Nada pendente por aqui.</div>';
+
+    const ag = document.getElementById('ck-agenda');
+    const items = [];
+    (d.atrasadas_list || []).slice(0, 4).forEach((a) => items.push(`<div class="ck-row"><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(a.titulo || '—')}</span><span class="ck-row__sub">${escapeHtml(a.cliente || '—')} · ${fmtDate(a.inicio_em)}</span></div><span class="badge badge--warning">atrasada</span></div>`));
+    (d.hoje_list || []).slice(0, 4).forEach((a) => items.push(`<div class="ck-row"><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(a.titulo || '—')}</span><span class="ck-row__sub">${escapeHtml(a.cliente || '—')} · ${fmtDate(a.inicio_em)}</span></div><span class="badge badge--brand">hoje</span></div>`));
+    (d.respostas_list || []).slice(0, 4).forEach((r) => items.push(`<div class="ck-row"><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(r.cliente || '—')}</span><span class="ck-row__sub">respondeu · ${escapeHtml(r.canal || '')}</span></div><span class="badge badge--success">resposta</span></div>`));
+    if (ag) ag.innerHTML = items.join('') || '<div class="empty">Sem pendências de agenda.</div>';
+
+    const PIPE = [['potencial_cliente', 'Potencial cliente'], ['leads', 'Leads'], ['oportunidades', 'Oportunidades'], ['pos_venda', 'Pós-venda']];
+    const mx = Math.max(1, ...PIPE.map(([k]) => (d.funil || {})[k] || 0));
+    const fn = document.getElementById('ck-funil');
+    if (fn) fn.innerHTML = PIPE.map(([k, label]) => `<div class="ck-funil__row"><span class="ck-funil__label">${label}</span><span class="bucket__bar"><span class="bucket__fill" style="width:${(((d.funil || {})[k] || 0) / mx) * 100}%"></span></span><span class="ck-funil__count">${(d.funil || {})[k] || 0}</span></div>`).join('');
+
+    if (!_ckBound) {
+      _ckBound = true;
+      document.querySelectorAll('.cockpit-kpi[data-go]').forEach((b) => b.addEventListener('click', () => {
+        const t = document.querySelector(`.nav-item[data-tab="${b.dataset.go}"]`);
+        if (t) t.click();
+      }));
+    }
+  }
+
   async function loadOverview() {
+    loadCockpit();
     try {
       const stats = await api('/stats');
       document.getElementById('m-total').textContent = stats.total.toLocaleString('pt-BR');
@@ -331,6 +372,83 @@
       }
     } catch (e) {
       console.error(e);
+    }
+    if (!_obBound) {
+      _obBound = true;
+      const f = document.getElementById('ob-filters');
+      if (f) f.addEventListener('click', (e) => {
+        const b = e.target.closest('.ob-chip');
+        if (!b) return;
+        _obFilter = b.dataset.obf || '';
+        document.querySelectorAll('#ob-filters .ob-chip').forEach((x) => x.classList.toggle('is-active', x === b));
+        loadOutboundQueue();
+      });
+    }
+    loadOutboundQueue();
+  }
+
+  // ---- Fila de outbound ----
+  const OB_CHAN = { sms: 'SMS', email_body: 'E-mail', linkedin_connection: 'LinkedIn · Convite', linkedin_followup: 'LinkedIn · Follow-up' };
+  const OB_STATUS = {
+    rascunho: 'badge', aprovado: 'badge badge--brand', enviado: 'badge badge--success',
+    respondido: 'badge badge--success', rejeitado: 'badge', falhou: 'badge badge--warning',
+  };
+  let _obFilter = '';
+  let _obBound = false;
+
+  function obBtn(act, id, label, variant) {
+    return `<button class="btn btn--${variant} btn--sm" data-act="${act}" data-id="${id}">${label}</button>`;
+  }
+  function obItem(m, subject) {
+    const badgeCls = OB_STATUS[m.status] || 'badge';
+    const isEmail = m.canal === 'email_body';
+    const label = OB_CHAN[m.canal] || m.canal;
+    let actions = '';
+    if (m.status === 'rascunho') actions = obBtn('aprovar', m.id, 'Aprovar', 'primary') + obBtn('rejeitar', m.id, 'Rejeitar', 'secondary');
+    else if (m.status === 'aprovado') actions = obBtn('enviar', m.id, 'Enviar', 'primary') + obBtn('rejeitar', m.id, 'Rejeitar', 'secondary');
+    else if (m.status === 'enviado') actions = obBtn('responder', m.id, 'Marcar respondido', 'secondary');
+    else if (m.status === 'falhou') actions = obBtn('aprovar', m.id, 'Tentar de novo', 'secondary');
+    return `<div class="ob-item">
+      <div class="ob-item__top"><span class="ob-chan">${label}</span><span class="${badgeCls}">${m.status}</span></div>
+      <div class="ob-item__company">${escapeHtml(m.lead_empresa || '—')}${isEmail && m.lead_email ? ' · ' + escapeHtml(m.lead_email) : ''}</div>
+      ${isEmail && subject ? `<div class="ob-item__subject">Assunto: ${escapeHtml(subject)}</div>` : ''}
+      <div class="ob-item__body">${escapeHtml(m.mensagem || '')}</div>
+      ${m.erro ? `<div class="ob-item__erro">Erro: ${escapeHtml(m.erro)}</div>` : ''}
+      <div class="ob-item__actions">${actions}</div>
+    </div>`;
+  }
+  async function loadOutboundQueue() {
+    const root = document.getElementById('outbound-queue');
+    if (!root) return;
+    root.innerHTML = '<div class="ob-empty">Carregando…</div>';
+    try {
+      const data = await api('/outbound' + (_obFilter ? '?status=' + _obFilter : ''));
+      const msgs = data.mensagens || [];
+      const subj = {};
+      msgs.forEach((m) => { if (m.canal === 'email_subject') subj[m.lead_id] = m.mensagem; });
+      const items = msgs.filter((m) => m.canal !== 'email_subject'); // colapsa o assunto no e-mail
+      if (!items.length) { root.innerHTML = '<div class="ob-empty">Nada na fila.</div>'; return; }
+      root.innerHTML = items.map((m) => obItem(m, subj[m.lead_id])).join('');
+      root.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => obAction(b.dataset.act, b.dataset.id)));
+    } catch (e) {
+      root.innerHTML = `<div class="ob-empty">Erro: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+  async function obAction(act, id) {
+    try {
+      if (act === 'aprovar') await api('/outbound/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'aprovado' }) });
+      else if (act === 'rejeitar') await api('/outbound/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'rejeitado' }) });
+      else if (act === 'enviar') {
+        const r = await api('/outbound/' + id + '/send', { method: 'POST' });
+        toast(r.dry_run ? 'Enviado (DRY-RUN: não saiu de verdade)' : 'E-mail enviado', 'success');
+      } else if (act === 'responder') {
+        await api('/outbound/' + id + '/reply', { method: 'POST' });
+        toast('Marcado como respondido', 'success');
+      }
+      if (act === 'aprovar' || act === 'rejeitar') toast('Atualizado', 'success');
+      loadOutboundQueue();
+    } catch (e) {
+      toast('Erro: ' + e.message, 'error');
     }
   }
   document.getElementById('btn-gen-outbound').addEventListener('click', async () => {
@@ -815,14 +933,747 @@
     }
   }
 
+  // ====== OPORTUNIDADES (vendas) ======
+  const TIPO_LABEL = {
+    ligacao: 'Ligação', videochamada: 'Videochamada', email: 'E-mail',
+    visita: 'Visita', almoco: 'Almoço', personalizado: 'Personalizado',
+  };
+  const TEMP_LABEL = {
+    muito_quente: 'Muito quente', quente: 'Quente', frio: 'Frio', muito_frio: 'Muito frio',
+  };
+  const PIPE_LABEL = {
+    potencial_cliente: 'Potencial cliente', leads: 'Leads',
+    oportunidades: 'Oportunidades', pos_venda: 'Pós-venda',
+  };
+  const STATUS_LABEL = {
+    a_fazer: 'A fazer', executada: 'Executada', atrasada: 'Atrasada',
+    reagendada: 'Reagendada', cancelada: 'Cancelada',
+  };
+  const PIPE_ORDER = ['potencial_cliente', 'leads', 'oportunidades', 'pos_venda'];
+  const TIPO_ICON = { ligacao: 'i-phone', videochamada: 'i-video', email: 'i-mail', visita: 'i-flag', almoco: 'i-flag', personalizado: 'i-target' };
+  function tipoIcon(t) { return TIPO_ICON[t] || 'i-flag'; }
+
+  // Tooltip flutuante dos ticks da timeline (uma instância reutilizável no body)
+  let _tlTipEl = null;
+  function tlTip() {
+    if (!_tlTipEl) {
+      _tlTipEl = document.createElement('div');
+      _tlTipEl.className = 'tl-tip';
+      _tlTipEl.hidden = true;
+      document.body.appendChild(_tlTipEl);
+    }
+    return _tlTipEl;
+  }
+  function hideTlTip() { if (_tlTipEl) _tlTipEl.hidden = true; }
+  function showTlTip(el) {
+    const tip = tlTip();
+    tip.innerHTML = `
+      <div class="tl-tip__time">${escapeHtml(el.dataset.hora || '')}</div>
+      <div class="tl-tip__row"><span class="temp-dot temp-dot--${el.dataset.temp || 'none'}"></span><span class="tl-tip__client">${escapeHtml(el.dataset.emp || '')}</span></div>
+      <div class="tl-tip__row"><svg class="tl-tip__ico" width="16" height="16"><use href="#${el.dataset.ico || 'i-flag'}"/></svg><span class="tl-tip__act">${escapeHtml(el.dataset.titulo || '')}</span></div>`;
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let left = r.left + r.width / 2 - tw / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+    let top = r.top - th - 8;
+    if (top < 8) top = r.bottom + 8;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+
+  let _oppView = 'lista';
+  let _oppBound = false;
+  let _oppLeads = [];
+  let _calRef = new Date();
+  let _calEscala = 'mes';
+  let _tlRef = new Date();
+  let _tlEscala = 'mes';
+  const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  const MESES_ABBR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+  function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+  function fmtTimeOnly(iso) { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
+  function statusLabel(s) { return { em_andamento: 'Em andamento', ganho: 'Ganho', congelado: 'Congelado', perdido: 'Perdido' }[s] || s; }
+
+  function tipoLabel(t) { return TIPO_LABEL[t] || '—'; }
+  function tempPill(t) { return t ? `<span class="temp-pill temp-pill--${t}">${TEMP_LABEL[t] || t}</span>` : '—'; }
+  function pipeBadge(p) { return p ? `<span class="pipe-badge pipe-badge--${p}">${PIPE_LABEL[p] || p}</span>` : '—'; }
+  function parseTags(tags) {
+    if (!tags) return [];
+    if (Array.isArray(tags)) return tags;
+    try { const a = JSON.parse(tags); return Array.isArray(a) ? a : []; }
+    catch { return String(tags).split(',').map((s) => s.trim()).filter(Boolean); }
+  }
+  function renderTags(tags) {
+    const a = parseTags(tags);
+    return a.length ? a.map((t) => `<span class="atv-tag">${escapeHtml(t)}</span>`).join(' ') : '—';
+  }
+  function emptyState(title, sub) {
+    return `<div class="opp-empty"><strong>${escapeHtml(title)}</strong>${escapeHtml(sub || '')}</div>`;
+  }
+  function pipeOptions(sel) {
+    return Object.entries(PIPE_LABEL).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
+  }
+  function statusOptions(sel) {
+    return Object.entries(STATUS_LABEL).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
+  }
+
+  function oppQuery() {
+    const qs = new URLSearchParams();
+    const periodo = document.getElementById('opp-f-periodo').value;
+    const tipo = document.getElementById('opp-f-tipo').value;
+    const temp = document.getElementById('opp-f-temp').value;
+    const pipe = document.getElementById('opp-f-pipeline').value;
+    if (periodo && periodo !== 'todos') qs.set('periodo', periodo);
+    if (tipo) qs.set('tipo', tipo);
+    if (temp) qs.set('temperatura', temp);
+    if (pipe) qs.set('pipeline', pipe);
+    return qs.toString();
+  }
+
+  async function renderOppView() {
+    const root = document.getElementById('opp-view-root');
+    if (!root) return;
+    const periodoSel = document.getElementById('opp-f-periodo');
+    if (periodoSel) periodoSel.disabled = (_oppView === 'calendario' || _oppView === 'timeline');
+    if (_oppView === 'calendario') { renderCalendario(); return; }
+    if (_oppView === 'timeline') { renderTimeline(); return; }
+    root.innerHTML = emptyState('Carregando…', '');
+    const view = _oppView;
+    try {
+      const q = oppQuery();
+      const data = await api('/atividades' + (q ? '?' + q : ''));
+      if (_oppView !== view) return; // view trocou durante o fetch
+      const items = data.atividades || [];
+      if (view === 'lista') renderLista(items);
+      else renderQuadro(items);
+    } catch (e) {
+      if (_oppView !== view) return;
+      root.innerHTML = emptyState('Erro ao carregar', e.message);
+      toast('Erro: ' + e.message, 'error');
+    }
+  }
+
+  function renderLista(items) {
+    const root = document.getElementById('opp-view-root');
+    if (!items.length) { root.innerHTML = emptyState('Nenhuma atividade', 'Crie a primeira com “Nova atividade”.'); return; }
+    const rows = items.map((a) => `
+      <tr data-atv="${a.id}" tabindex="0">
+        <td>${fmtDate(a.inicio_em)}</td>
+        <td>${tipoLabel(a.tipo)}</td>
+        <td class="cliente">${escapeHtml(a.cliente_empresa || '—')}</td>
+        <td>${escapeHtml(a.titulo || '—')}</td>
+        <td>${tempPill(a.temperatura)}</td>
+        <td>${escapeHtml(a.responsavel || '—')}</td>
+        <td>${pipeBadge(a.pipeline)}</td>
+        <td>${renderTags(a.tags)}</td>
+      </tr>`).join('');
+    root.innerHTML = `
+      <div class="opp-table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th>Horário</th><th>Tipo</th><th>Cliente alvo</th><th>Nome</th>
+            <th>Temperatura</th><th>Responsável</th><th>Pipeline</th><th>Tags</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="opp-foot">${items.length} atividade(s)</div>`;
+    root.querySelectorAll('[data-atv]').forEach((tr) => {
+      tr.addEventListener('click', () => showAtividade(tr.dataset.atv));
+      tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') showAtividade(tr.dataset.atv); });
+    });
+  }
+
+  function atvCard(a) {
+    return `<button class="atv-card" data-atv="${a.id}" data-pipe="${a.pipeline || ''}" draggable="true" type="button">
+      <div class="atv-card__top">
+        <span class="atv-card__date">${fmtDate(a.inicio_em)}</span>
+        ${tempPill(a.temperatura)}
+      </div>
+      <div class="atv-card__title">${escapeHtml(a.titulo || 'Sem título')}</div>
+      <span class="type-chip">${tipoLabel(a.tipo)}</span>
+      <div class="atv-card__meta">
+        <div><svg width="14" height="14"><use href="#i-building"/></svg>${escapeHtml(a.cliente_empresa || '—')}</div>
+        <div><svg width="14" height="14"><use href="#i-user"/></svg>${escapeHtml(a.contato_nome || a.cliente_decisor || '—')}</div>
+        <div><svg width="14" height="14"><use href="#i-clock"/></svg>${a.duracao_min ? a.duracao_min + ' min' : '—'}</div>
+      </div>
+    </button>`;
+  }
+
+  function renderQuadro(items) {
+    const root = document.getElementById('opp-view-root');
+    const byPipe = {};
+    PIPE_ORDER.forEach((k) => { byPipe[k] = []; });
+    items.forEach((a) => { (byPipe[a.pipeline] || (byPipe[a.pipeline] = [])).push(a); });
+    root.innerHTML = '<div class="opp-kanban">' + PIPE_ORDER.map((k) => {
+      const cards = byPipe[k] || [];
+      return `<div class="opp-col" data-pipe="${k}">
+        <div class="opp-col__head"><span class="opp-col__title">${PIPE_LABEL[k]}</span><span class="opp-col__count">${cards.length}</span></div>
+        ${cards.length ? cards.map(atvCard).join('') : '<div class="opp-col__empty">Vazio</div>'}
+      </div>`;
+    }).join('') + '</div>';
+    root.querySelectorAll('.atv-card').forEach((card) => {
+      card.addEventListener('click', () => showAtividade(card.dataset.atv));
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', card.dataset.atv);
+        e.dataTransfer.effectAllowed = 'move';
+        card.classList.add('atv-card--dragging');
+      });
+      card.addEventListener('dragend', () => card.classList.remove('atv-card--dragging'));
+    });
+    root.querySelectorAll('.opp-col').forEach((col) => {
+      col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('opp-col--dragover'); });
+      col.addEventListener('dragleave', () => col.classList.remove('opp-col--dragover'));
+      col.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        col.classList.remove('opp-col--dragover');
+        const id = e.dataTransfer.getData('text/plain');
+        const pipe = col.dataset.pipe;
+        const card = root.querySelector(`.atv-card[data-atv="${id}"]`);
+        if (!id || !pipe || (card && card.dataset.pipe === pipe)) return;
+        try {
+          await api('/atividades/' + id, { method: 'PATCH', body: JSON.stringify({ pipeline: pipe }) });
+          toast('Movido para ' + PIPE_LABEL[pipe], 'success');
+          renderOppView();
+        } catch (err) { toast('Erro ao mover: ' + err.message, 'error'); }
+      });
+    });
+  }
+
+  async function ensureLeads() {
+    if (_oppLeads.length) return _oppLeads;
+    try { const d = await api('/db/leads?limit=300'); _oppLeads = d.leads || []; }
+    catch { _oppLeads = []; }
+    return _oppLeads;
+  }
+
+  async function openNovaAtividade() {
+    await ensureLeads();
+    const leadOpts = ['<option value="">Defina um cliente</option>']
+      .concat(_oppLeads.map((l) => `<option value="${l.id}">${escapeHtml(l.empresa || ('Lead #' + l.id))}</option>`)).join('');
+    const tipoChips = Object.entries(TIPO_LABEL)
+      .map(([k, v]) => `<button type="button" class="atv-chip" data-tipo="${k}">${v}</button>`).join('');
+    const html = `
+      <form class="atv-form" id="atv-form">
+        <div class="atv-form__natureza">
+          <button type="button" class="atv-nat is-active" data-nat="evento">Evento</button>
+          <button type="button" class="atv-nat" data-nat="tarefa">Tarefa</button>
+          <button type="button" class="atv-nat" data-nat="lembrete">Lembrete</button>
+        </div>
+        <div class="atv-chips" id="atv-tipos">${tipoChips}</div>
+        <div class="atv-field atv-field--full">
+          <label for="atv-titulo">Nome</label>
+          <input class="input" id="atv-titulo" placeholder="Defina um nome" required />
+        </div>
+        <div class="atv-grid">
+          <div class="atv-field"><label for="atv-inicio">Dia e horário</label><input class="input" type="datetime-local" id="atv-inicio" /></div>
+          <div class="atv-field"><label for="atv-duracao">Duração (min)</label><input class="input" type="number" min="0" step="5" id="atv-duracao" placeholder="30" /></div>
+          <div class="atv-field"><label for="atv-repeticao">Repetição</label>
+            <select class="input" id="atv-repeticao">
+              <option value="nenhuma">Nenhuma</option><option value="diaria">Diária</option>
+              <option value="semanal">Semanal</option><option value="mensal">Mensal</option>
+            </select></div>
+          <div class="atv-field" style="justify-content:flex-end">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="atv-diainteiro" /> Dia inteiro</label>
+          </div>
+          <div class="atv-field"><label for="atv-cliente">Cliente</label><select class="input" id="atv-cliente">${leadOpts}</select></div>
+          <div class="atv-field"><label for="atv-contato">Contato do cliente</label><input class="input" id="atv-contato" placeholder="Nome do contato" /></div>
+          <div class="atv-field"><label for="atv-temp">Temperatura</label>
+            <select class="input" id="atv-temp">
+              <option value="">—</option><option value="muito_quente">Muito quente</option>
+              <option value="quente">Quente</option><option value="frio">Frio</option><option value="muito_frio">Muito frio</option>
+            </select></div>
+          <div class="atv-field"><label for="atv-pipeline">Pipeline</label>
+            <select class="input" id="atv-pipeline">${pipeOptions('potencial_cliente')}</select></div>
+        </div>
+        <div class="atv-field atv-field--full"><label for="atv-desc">Descrição</label><textarea class="input" id="atv-desc" placeholder="Sobre o que você vai tratar?"></textarea></div>
+        <div class="atv-field atv-field--full"><label for="atv-tags">Tags</label><input class="input" id="atv-tags" placeholder="ex.: oportunidade, setor do cliente" /></div>
+        <div class="atv-form__foot">
+          <button type="button" class="btn btn--secondary" id="atv-cancel">Cancelar</button>
+          <button type="submit" class="btn btn--primary">Salvar</button>
+        </div>
+      </form>`;
+    showModal('Nova atividade', html);
+
+    let natureza = 'evento';
+    let tipo = null;
+    document.querySelectorAll('.atv-nat').forEach((b) => b.addEventListener('click', () => {
+      natureza = b.dataset.nat;
+      document.querySelectorAll('.atv-nat').forEach((x) => x.classList.toggle('is-active', x === b));
+    }));
+    document.getElementById('atv-tipos').addEventListener('click', (e) => {
+      const c = e.target.closest('.atv-chip');
+      if (!c) return;
+      tipo = c.dataset.tipo;
+      document.querySelectorAll('.atv-chip').forEach((x) => x.classList.toggle('is-active', x === c));
+    });
+    document.getElementById('atv-cancel').addEventListener('click', closeModal);
+    document.getElementById('atv-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const titulo = document.getElementById('atv-titulo').value.trim();
+      if (!titulo) { toast('Informe um nome', 'error'); return; }
+      const payload = {
+        titulo, natureza, tipo,
+        inicio_em: document.getElementById('atv-inicio').value || null,
+        duracao_min: parseInt(document.getElementById('atv-duracao').value || '', 10) || null,
+        dia_inteiro: document.getElementById('atv-diainteiro').checked,
+        repeticao: document.getElementById('atv-repeticao').value,
+        lead_id: parseInt(document.getElementById('atv-cliente').value || '', 10) || null,
+        contato_nome: document.getElementById('atv-contato').value.trim() || null,
+        temperatura: document.getElementById('atv-temp').value || null,
+        pipeline: document.getElementById('atv-pipeline').value,
+        descricao: document.getElementById('atv-desc').value.trim() || null,
+        tags: (document.getElementById('atv-tags').value || '').split(',').map((s) => s.trim()).filter(Boolean),
+      };
+      const btn = e.submitter;
+      if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
+      try {
+        await api('/atividades', { method: 'POST', body: JSON.stringify(payload) });
+        closeModal();
+        toast('Atividade criada', 'success');
+        renderOppView();
+      } catch (err) {
+        toast('Erro ao salvar: ' + err.message, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+      }
+    });
+  }
+
+  async function showAtividade(id) {
+    try {
+      const data = await api('/atividades/' + id);
+      const a = data.atividade;
+      const tags = parseTags(a.tags);
+      const html = `
+        <div class="atv-detail">
+          <span class="type-chip">${tipoLabel(a.tipo)}</span>
+          <div class="atv-detail__row">
+            <div><svg width="16" height="16"><use href="#i-clock"/></svg>${fmtDate(a.inicio_em)}${a.duracao_min ? ' · ' + a.duracao_min + ' min' : ''}</div>
+          </div>
+          <div class="atv-detail__row">
+            <div><svg width="16" height="16"><use href="#i-building"/></svg>${escapeHtml(a.cliente_empresa || '—')}</div>
+            <div><svg width="16" height="16"><use href="#i-user"/></svg>${escapeHtml(a.contato_nome || a.cliente_decisor || '—')}</div>
+          </div>
+          <div class="atv-detail__row">${tempPill(a.temperatura)} ${pipeBadge(a.pipeline)}</div>
+          ${a.descricao ? `<div><div class="atv-detail__label">Descrição</div><div class="atv-detail__desc">${escapeHtml(a.descricao)}</div></div>` : ''}
+          ${tags.length ? `<div><div class="atv-detail__label">Tags</div><div class="atv-detail__tags">${tags.map((t) => `<span class="atv-tag">${escapeHtml(t)}</span>`).join('')}</div></div>` : ''}
+          ${a.inicio_em ? `<div class="atv-cal"><a class="btn btn--secondary btn--sm" target="_blank" rel="noopener" href="${googleCalLink(a)}">Adicionar ao Google Agenda</a><button class="btn btn--secondary btn--sm" id="atv-ics" type="button">Baixar .ics</button></div>` : ''}
+          <div class="atv-grid">
+            <div class="atv-field"><label for="atv-d-pipeline">Pipeline</label><select class="input" id="atv-d-pipeline">${pipeOptions(a.pipeline)}</select></div>
+            <div class="atv-field"><label for="atv-d-status">Status</label><select class="input" id="atv-d-status">${statusOptions(a.status)}</select></div>
+          </div>
+          <div class="atv-form__foot"><button class="btn btn--primary" id="atv-d-save">Salvar alterações</button></div>
+        </div>`;
+      showModal(a.titulo || 'Atividade', html);
+      const _ics = document.getElementById('atv-ics');
+      if (_ics) _ics.addEventListener('click', () => downloadIcs(id));
+      document.getElementById('atv-d-save').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+          await api('/atividades/' + id, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              pipeline: document.getElementById('atv-d-pipeline').value,
+              status: document.getElementById('atv-d-status').value,
+            }),
+          });
+          closeModal();
+          toast('Atividade atualizada', 'success');
+          renderOppView();
+        } catch (err) { toast('Erro: ' + err.message, 'error'); btn.disabled = false; }
+      });
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
+  }
+
+  // ---- Calendário ----
+  function calFilterQuery() {
+    const qs = new URLSearchParams();
+    const tipo = document.getElementById('opp-f-tipo').value;
+    const temp = document.getElementById('opp-f-temp').value;
+    const pipe = document.getElementById('opp-f-pipeline').value;
+    if (tipo) qs.set('tipo', tipo);
+    if (temp) qs.set('temperatura', temp);
+    if (pipe) qs.set('pipeline', pipe);
+    return qs;
+  }
+  function shiftCal(dir) {
+    if (_calEscala === 'semana') _calRef.setDate(_calRef.getDate() + 7 * dir);
+    else _calRef.setMonth(_calRef.getMonth() + dir);
+    _calRef = new Date(_calRef);
+  }
+  function bindCalControls() {
+    const prev = document.getElementById('cal-prev');
+    const next = document.getElementById('cal-next');
+    const today = document.getElementById('cal-today');
+    const seg = document.getElementById('cal-seg');
+    if (prev) prev.onclick = () => { shiftCal(-1); renderCalendario(); };
+    if (next) next.onclick = () => { shiftCal(1); renderCalendario(); };
+    if (today) today.onclick = () => { _calRef = new Date(); renderCalendario(); };
+    if (seg) seg.onclick = (e) => { const b = e.target.closest('.opp-seg__btn'); if (!b) return; _calEscala = b.dataset.esc; renderCalendario(); };
+  }
+  function calEv(a) {
+    return `<button class="cal-ev" data-atv="${a.id}" type="button" title="${escapeHtml(a.titulo || '')}">
+      <span class="temp-dot temp-dot--${a.temperatura || 'none'}"></span>
+      <span class="cal-ev__t">${a.inicio_em ? fmtTimeOnly(a.inicio_em) : ''}</span>
+      <span class="cal-ev__c">${escapeHtml(a.cliente_empresa || a.titulo || '—')}</span>
+    </button>`;
+  }
+  function calMonth(byDay) {
+    const ref = _calRef;
+    const first = new Date(ref.getFullYear(), ref.getMonth(), 1);
+    const start = new Date(first);
+    start.setDate(1 - first.getDay());
+    const today = new Date();
+    let cells = '';
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const list = byDay[isoDate(d)] || [];
+      const cls = ['cal-cell'];
+      if (d.getMonth() !== ref.getMonth()) cls.push('cal-cell--out');
+      if (sameDay(d, today)) cls.push('cal-cell--today');
+      const evs = list.slice(0, 3).map(calEv).join('');
+      const more = list.length > 3 ? `<div class="cal-more">+${list.length - 3}</div>` : '';
+      cells += `<div class="${cls.join(' ')}"><div class="cal-daynum">${d.getDate()}</div>${evs}${more}</div>`;
+    }
+    const head = DOW.map((x) => `<div class="cal-dow">${x}</div>`).join('');
+    return `<div class="cal-grid"><div class="cal-weekhead">${head}</div><div class="cal-cells">${cells}</div></div>`;
+  }
+  function calWeek(byDay) {
+    const ws = new Date(_calRef);
+    ws.setDate(ws.getDate() - ws.getDay());
+    const today = new Date();
+    let head = '';
+    let cells = '';
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(ws);
+      d.setDate(ws.getDate() + i);
+      head += `<div class="cal-dow">${DOW[i]} ${d.getDate()}</div>`;
+      const list = byDay[isoDate(d)] || [];
+      const evs = list.map(calEv).join('') || '<div class="cal-more">—</div>';
+      cells += `<div class="cal-cell cal-cell--week ${sameDay(d, today) ? 'cal-cell--today' : ''}">${evs}</div>`;
+    }
+    return `<div class="cal-grid cal-grid--week"><div class="cal-weekhead cal-weekhead--week">${head}</div><div class="cal-cells cal-cells--week">${cells}</div></div>`;
+  }
+  function calControls() {
+    const isWeek = _calEscala === 'semana';
+    let label;
+    if (isWeek) {
+      const ws = new Date(_calRef); ws.setDate(ws.getDate() - ws.getDay());
+      const we = new Date(ws); we.setDate(we.getDate() + 6);
+      label = `${ws.getDate()} ${MESES_ABBR[ws.getMonth()]} – ${we.getDate()} ${MESES_ABBR[we.getMonth()]} ${we.getFullYear()}`;
+    } else {
+      label = `${MESES[_calRef.getMonth()]} de ${_calRef.getFullYear()}`;
+    }
+    return `<div class="opp-subbar">
+      <div class="opp-nav">
+        <button class="icon-btn" id="cal-prev" aria-label="Anterior"><svg width="16" height="16"><use href="#i-chev-left"/></svg></button>
+        <span class="opp-nav__label">${label}</span>
+        <button class="icon-btn" id="cal-next" aria-label="Próximo"><svg width="16" height="16"><use href="#i-chev-right"/></svg></button>
+        <button class="btn btn--secondary btn--sm" id="cal-today">Hoje</button>
+      </div>
+      <div class="opp-seg" id="cal-seg">
+        <button class="opp-seg__btn ${!isWeek ? 'is-active' : ''}" data-esc="mes">Mês</button>
+        <button class="opp-seg__btn ${isWeek ? 'is-active' : ''}" data-esc="semana">Semana</button>
+      </div>
+    </div>`;
+  }
+  async function renderCalendario() {
+    const root = document.getElementById('opp-view-root');
+    const controls = calControls();
+    root.innerHTML = controls + '<div class="opp-empty">Carregando…</div>';
+    bindCalControls();
+    try {
+      const qs = calFilterQuery();
+      qs.set('ref', isoDate(_calRef));
+      qs.set('escala', _calEscala);
+      const data = await api('/atividades/calendario?' + qs.toString());
+      if (_oppView !== 'calendario') return; // saiu da view durante o fetch
+      const byDay = {};
+      (data.atividades || []).forEach((a) => { const k = (a.inicio_em || '').slice(0, 10); (byDay[k] || (byDay[k] = [])).push(a); });
+      root.innerHTML = controls + (_calEscala === 'semana' ? calWeek(byDay) : calMonth(byDay));
+      bindCalControls();
+      root.querySelectorAll('[data-atv]').forEach((el) => el.addEventListener('click', () => showAtividade(el.dataset.atv)));
+    } catch (e) {
+      root.innerHTML = controls + emptyState('Erro ao carregar', e.message);
+      bindCalControls();
+    }
+  }
+
+  // ---- Timeline ----
+  function shiftTl(dir) {
+    if (_tlEscala === 'ano') _tlRef.setFullYear(_tlRef.getFullYear() + dir);
+    else if (_tlEscala === 'trimestre') _tlRef.setMonth(_tlRef.getMonth() + 3 * dir);
+    else _tlRef.setMonth(_tlRef.getMonth() + dir);
+    _tlRef = new Date(_tlRef);
+  }
+  function bindTlControls() {
+    const prev = document.getElementById('tl-prev');
+    const next = document.getElementById('tl-next');
+    const today = document.getElementById('tl-today');
+    const seg = document.getElementById('tl-seg');
+    if (prev) prev.onclick = () => { shiftTl(-1); renderTimeline(); };
+    if (next) next.onclick = () => { shiftTl(1); renderTimeline(); };
+    if (today) today.onclick = () => { _tlRef = new Date(); renderTimeline(); };
+    if (seg) seg.onclick = (e) => { const b = e.target.closest('.opp-seg__btn'); if (!b) return; _tlEscala = b.dataset.esc; renderTimeline(); };
+  }
+  function tlAxis(start, end, esc) {
+    const span = (end - start) || 1;
+    const ticks = [];
+    if (esc === 'ano') {
+      for (let m = 0; m < 12; m++) { const d = new Date(start.getFullYear(), m, 1); ticks.push([(d - start) / span * 100, MESES_ABBR[m]]); }
+    } else if (esc === 'trimestre') {
+      for (let i = 0; i < 3; i++) { const d = new Date(start.getFullYear(), start.getMonth() + i, 1); ticks.push([(d - start) / span * 100, MESES_ABBR[d.getMonth()]]); }
+    } else {
+      const days = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+      for (let day = 1; day <= days; day += 5) { const d = new Date(start.getFullYear(), start.getMonth(), day); ticks.push([(d - start) / span * 100, String(day)]); }
+    }
+    return ticks.map(([l, t]) => `<span class="tl-axis__lbl" style="left:${l}%">${t}</span>`).join('');
+  }
+  function tlControls() {
+    const escLabel = { mes: 'Mês', trimestre: 'Trimestre', ano: 'Ano' };
+    let label;
+    if (_tlEscala === 'ano') label = `${_tlRef.getFullYear()}`;
+    else if (_tlEscala === 'trimestre') label = `${Math.floor(_tlRef.getMonth() / 3) + 1}º trimestre · ${_tlRef.getFullYear()}`;
+    else label = `${MESES[_tlRef.getMonth()]} de ${_tlRef.getFullYear()}`;
+    return `<div class="opp-subbar">
+      <div class="opp-nav">
+        <button class="icon-btn" id="tl-prev" aria-label="Anterior"><svg width="16" height="16"><use href="#i-chev-left"/></svg></button>
+        <span class="opp-nav__label">${label}</span>
+        <button class="icon-btn" id="tl-next" aria-label="Próximo"><svg width="16" height="16"><use href="#i-chev-right"/></svg></button>
+        <button class="btn btn--secondary btn--sm" id="tl-today">Hoje</button>
+      </div>
+      <div class="opp-seg" id="tl-seg">
+        ${['mes', 'trimestre', 'ano'].map((k) => `<button class="opp-seg__btn ${_tlEscala === k ? 'is-active' : ''}" data-esc="${k}">${escLabel[k]}</button>`).join('')}
+      </div>
+    </div>`;
+  }
+  async function renderTimeline() {
+    const root = document.getElementById('opp-view-root');
+    const controls = tlControls();
+    root.innerHTML = controls + '<div class="opp-empty">Carregando…</div>';
+    bindTlControls();
+    try {
+      const tlqs = calFilterQuery();
+      tlqs.set('ref', isoDate(_tlRef));
+      tlqs.set('escala', _tlEscala);
+      const data = await api('/atividades/timeline?' + tlqs.toString());
+      if (_oppView !== 'timeline') return; // saiu da view durante o fetch
+      const start = new Date(data.inicio);
+      const end = new Date(data.fim);
+      const span = (end - start) || 1;
+      const pct = (iso) => Math.max(0, Math.min(100, (new Date(iso) - start) / span * 100));
+      const ops = data.oportunidades || [];
+      if (!ops.length) {
+        root.innerHTML = controls + emptyState('Sem oportunidades no período', 'Crie atividades vinculadas a um cliente.');
+        bindTlControls();
+        return;
+      }
+      const rows = ops.map((o) => {
+        const sorted = o.atividades.filter((a) => a.inicio_em).slice()
+          .sort((a, b) => (a.inicio_em < b.inicio_em ? -1 : (a.inicio_em > b.inicio_em ? 1 : 0)));
+        const barL = sorted.length ? pct(sorted[0].inicio_em) : 0;
+        const barR = sorted.length ? pct(sorted[sorted.length - 1].inicio_em) : 0;
+        const stage = sorted.length ? (sorted[0].titulo || 'Primeiro contato') : '';
+        const ticks = o.atividades.filter((a) => a.inicio_em).map((a) =>
+          `<span class="tl-tick temp-dot--${a.temperatura || 'none'}" style="left:${pct(a.inicio_em)}%" data-atv="${a.id}" data-hora="${escapeHtml(fmtTimeOnly(a.inicio_em))}" data-emp="${escapeHtml(o.empresa)}" data-titulo="${escapeHtml(a.titulo || '')}" data-temp="${a.temperatura || 'none'}" data-ico="${tipoIcon(a.tipo)}"></span>`).join('');
+        return `<div class="tl-row">
+          <div class="tl-row__label">
+            <div class="tl-row__emp">${escapeHtml(o.empresa)}</div>
+            <div class="tl-row__meta">Ciclo: ${o.ciclo_dias}d · <select class="tl-status-sel tl-status--${o.status}" data-lead="${o.lead_id}" aria-label="Status da oportunidade">${['em_andamento', 'ganho', 'congelado', 'perdido'].map((s) => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${statusLabel(s)}</option>`).join('')}</select></div>
+          </div>
+          <div class="tl-track">
+            <div class="tl-bar-rest" style="left:${barR}%;width:${Math.max(0, 100 - barR)}%"></div>
+            <div class="tl-bar tl-bar--${o.status}" style="left:${barL}%;width:${Math.max(1, barR - barL)}%"></div>
+            ${o.status === 'ganho' ? `<span class="tl-won" style="left:${barR}%"><svg width="13" height="13"><use href="#i-star"/></svg>Negócio ganho</span>` : ''}
+            ${stage ? `<span class="tl-stage" style="left:${barL}%">${escapeHtml(stage)}</span>` : ''}
+            ${ticks}
+          </div>
+        </div>`;
+      }).join('');
+      root.innerHTML = controls + `<div class="tl">
+        <div class="tl-row tl-row--axis"><div class="tl-row__label tl-row__label--axis">Cliente · ciclo</div><div class="tl-track tl-axis">${tlAxis(start, end, _tlEscala)}</div></div>
+        ${rows}
+      </div>`;
+      bindTlControls();
+      root.querySelectorAll('.tl-tick[data-atv]').forEach((el) => el.addEventListener('click', () => showAtividade(el.dataset.atv)));
+      const tlEl = root.querySelector('.tl');
+      if (tlEl) {
+        tlEl.addEventListener('mouseover', (e) => { const t = e.target.closest('.tl-tick'); if (t) showTlTip(t); });
+        tlEl.addEventListener('mouseout', (e) => { const t = e.target.closest('.tl-tick'); if (t) hideTlTip(); });
+      }
+      root.querySelectorAll('.tl-status-sel').forEach((sel) => sel.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        try {
+          await api('/db/leads/' + sel.dataset.lead, { method: 'PATCH', body: JSON.stringify({ pipeline_status: sel.value }) });
+          toast('Status atualizado', 'success');
+          renderTimeline();
+        } catch (err) { toast('Erro: ' + err.message, 'error'); }
+      }));
+    } catch (e) {
+      root.innerHTML = controls + emptyState('Erro ao carregar', e.message);
+      bindTlControls();
+    }
+  }
+
+  // Na 1ª abertura, abre Calendário/Timeline no mês da atividade mais recente
+  let _oppDateInit = false;
+  async function initDefaultMonth() {
+    if (_oppDateInit) return;
+    _oppDateInit = true;
+    try {
+      const data = await api('/atividades?order=desc&limit=1');
+      const a = (data.atividades || [])[0];
+      if (a && a.inicio_em) {
+        const d = new Date(a.inicio_em);
+        if (!isNaN(d)) { _calRef = d; _tlRef = d; }
+      }
+    } catch (e) { /* mantém o mês atual */ }
+  }
+
+  async function loadOportunidades() {
+    if (!_oppBound) {
+      _oppBound = true;
+      document.getElementById('opp-views').addEventListener('click', (e) => {
+        const btn = e.target.closest('.opp-view');
+        if (!btn) return;
+        _oppView = btn.dataset.view;
+        document.querySelectorAll('.opp-view').forEach((b) => b.classList.toggle('is-active', b === btn));
+        renderOppView();
+      });
+      ['opp-f-periodo', 'opp-f-tipo', 'opp-f-temp', 'opp-f-pipeline'].forEach((id) =>
+        document.getElementById(id).addEventListener('change', renderOppView));
+      document.getElementById('opp-nova').addEventListener('click', openNovaAtividade);
+    }
+    await initDefaultMonth();
+    renderOppView();
+  }
+
   // ====== MODAL CLOSE ======
   document.getElementById('modal-close').addEventListener('click', closeModal);
   document.querySelector('.modal__backdrop').addEventListener('click', closeModal);
 
-  // ====== INIT ======
-  document.addEventListener('DOMContentLoaded', () => {
+  // ====== LEMBRETES (sino) + Google Agenda ======
+  const REM_LABEL = { atrasada: 'Atrasada', hoje: 'Hoje', sem_resposta: 'Follow-up', resposta: 'Resposta', quente_sem_contato: 'Quente' };
+  const REM_BADGE = { atrasada: 'badge badge--warning', hoje: 'badge badge--brand', sem_resposta: 'badge', resposta: 'badge badge--success', quente_sem_contato: 'badge badge--success' };
+  let _remBound = false;
+  async function loadReminders() {
+    let d;
+    try { d = await api('/sales/reminders'); } catch (e) { return; }
+    const countEl = document.getElementById('reminders-count');
+    if (countEl) { countEl.textContent = d.count; countEl.hidden = !d.count; }
+    const panel = document.getElementById('reminders-panel');
+    if (panel) {
+      panel.innerHTML = (d.itens || []).length
+        ? `<div class="reminders__head">Lembretes (${d.count})</div>` + d.itens.slice(0, 40).map((it) =>
+            `<button class="rem-item" data-acao="${it.acao}"><span class="${REM_BADGE[it.tipo] || 'badge'}">${REM_LABEL[it.tipo] || it.tipo}</span><span class="rem-item__txt"><span class="rem-item__t">${escapeHtml(it.titulo)}</span><span class="rem-item__s">${escapeHtml(it.sub || '')}</span></span></button>`).join('')
+        : '<div class="reminders__empty">Tudo em dia por aqui.</div>';
+      panel.querySelectorAll('.rem-item[data-acao]').forEach((b) => b.addEventListener('click', () => {
+        const t = document.querySelector(`.nav-item[data-tab="${b.dataset.acao}"]`);
+        if (t) t.click();
+        panel.hidden = true;
+      }));
+    }
+    if (!_remBound) {
+      _remBound = true;
+      const bell = document.getElementById('btn-reminders');
+      if (bell) bell.addEventListener('click', (e) => { e.stopPropagation(); const p = document.getElementById('reminders-panel'); if (p) p.hidden = !p.hidden; });
+      document.addEventListener('click', (e) => { const r = document.getElementById('reminders'); const p = document.getElementById('reminders-panel'); if (r && p && !r.contains(e.target)) p.hidden = true; });
+    }
+  }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function googleCalLink(a) {
+    if (!a.inicio_em) return '#';
+    const start = new Date(a.inicio_em);
+    if (isNaN(start)) return '#';
+    const end = new Date(start.getTime() + (a.duracao_min || 30) * 60000);
+    const z = (d) => `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}T${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}00Z`;
+    const p = new URLSearchParams({ action: 'TEMPLATE', text: a.titulo || 'Atividade', dates: `${z(start)}/${z(end)}`, details: a.descricao || '', location: a.cliente_empresa || '' });
+    return 'https://calendar.google.com/calendar/render?' + p.toString();
+  }
+  async function downloadIcs(id) {
+    try {
+      const r = await fetch(`${API_URL}/atividades/${id}/calendar.ics`, { headers: { 'X-API-Token': API_TOKEN } });
+      if (!r.ok) throw new Error(await r.text());
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = `atividade-${id}.ics`; link.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { toast('Erro ao gerar .ics: ' + e.message, 'error'); }
+  }
+
+  // ====== AUTH (login Google, com fallback ao token) ======
+  function enterApp() {
     checkHealth();
     loadOverview();
+    loadReminders();
     setInterval(checkHealth, 10000);
-  });
+    setInterval(loadReminders, 60000);
+    refreshAuthFooter();
+  }
+  async function refreshAuthFooter() {
+    try {
+      const me = await api('/auth/me');
+      const el = document.getElementById('auth-user');
+      if (el && me && me.autenticado && me.via === 'google') {
+        el.innerHTML = `<span class="auth-user__name">${escapeHtml(me.nome || me.email || '')}</span><button class="auth-logout" id="btn-logout">Sair</button>`;
+        const lo = document.getElementById('btn-logout');
+        if (lo) lo.addEventListener('click', async () => {
+          try { await api('/auth/logout', { method: 'POST' }); } catch (e) {}
+          localStorage.removeItem('apiToken');
+          location.reload();
+        });
+      }
+    } catch (e) { /* modo token: sem footer de usuário */ }
+  }
+  async function onGoogleCredential(resp) {
+    const err = document.getElementById('login-err');
+    if (err) err.textContent = '';
+    try {
+      const r = await fetch(`${API_URL}/auth/google`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: resp.credential }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      API_TOKEN = data.token;
+      localStorage.setItem('apiToken', data.token);
+      const gate = document.getElementById('login-gate');
+      if (gate) gate.hidden = true;
+      enterApp();
+    } catch (e) {
+      if (err) err.textContent = 'Falha no login. Confira o domínio autorizado e tente novamente.';
+    }
+  }
+  function showLoginGate(clientId) {
+    const gate = document.getElementById('login-gate');
+    if (gate) gate.hidden = false;
+    let tries = 0;
+    (function initGis() {
+      if (window.google && google.accounts && google.accounts.id) {
+        google.accounts.id.initialize({ client_id: clientId, callback: onGoogleCredential });
+        google.accounts.id.renderButton(document.getElementById('gbtn'), { theme: 'outline', size: 'large', text: 'signin_with', locale: 'pt-BR' });
+      } else if (tries++ < 40) {
+        setTimeout(initGis, 200);
+      }
+    })();
+  }
+  async function bootstrapAuth() {
+    let cfg = { google_enabled: false };
+    try { cfg = await fetch(`${API_URL}/auth/config`).then((r) => r.json()); } catch (e) {}
+    if (!cfg.google_enabled) { enterApp(); return; }
+    try {
+      const me = await api('/auth/me');
+      if (me && me.autenticado) { enterApp(); return; }
+    } catch (e) { /* 401 → mostra o gate */ }
+    showLoginGate(cfg.client_id);
+  }
+
+  // ====== INIT ======
+  document.addEventListener('DOMContentLoaded', bootstrapAuth);
 })();

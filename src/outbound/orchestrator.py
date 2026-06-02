@@ -9,10 +9,12 @@ Para cada lead, produz:
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from ..claude_agent.client import GeminiClient
 from ..db.store import Store
+from ..integrations.email_sender import send_email
 
 logger = logging.getLogger(__name__)
 
@@ -108,3 +110,49 @@ def generate_and_store(lead_id: int, lead: dict[str, Any], store: Store | None =
 
     store.log_event("outbound_generated", {"lead_id": lead_id, "empresa": lead.get("empresa")})
     return messages
+
+
+EMAIL_CANAIS = ("email_subject", "email_body")
+
+
+def send_outbound(msg_id: int, store: Store | None = None) -> dict[str, Any]:
+    """Envia (ou marca enviada) uma mensagem aprovada.
+
+    E-mail dispara via SMTP (respeitando OUTBOUND_DRY_RUN) e exige email_validado;
+    o par assunto+corpo é enviado junto e ambos viram 'enviado'. Demais canais
+    (sms/linkedin) não têm auto-envio ainda → "enviado" é marcação manual.
+    """
+    store = store or Store()
+    msg = store.outbound_message(msg_id)
+    if not msg:
+        return {"ok": False, "erro": "mensagem não encontrada"}
+    if msg.get("status") != "aprovado":
+        return {"ok": False, "erro": f"status é '{msg.get('status')}'; precisa estar 'aprovado'"}
+
+    canal = msg.get("canal") or ""
+    now = datetime.now().isoformat(timespec="seconds")
+
+    if canal in EMAIL_CANAIS:
+        if not msg.get("lead_email"):
+            return {"ok": False, "erro": "lead sem e-mail"}
+        if not msg.get("lead_email_validado"):
+            return {"ok": False, "erro": "e-mail do lead não validado (email_validado != 1)"}
+        lead_id = msg["lead_id"]
+        subj_row = store.outbound_sibling(lead_id, "email_subject")
+        body_row = store.outbound_sibling(lead_id, "email_body") or msg
+        subject = (subj_row or {}).get("mensagem") or "Solvefy CPaaS"
+        body = body_row.get("mensagem") or ""
+        res = send_email(msg["lead_email"], subject, body)
+        if res.get("ok"):
+            for r in (subj_row, body_row):
+                if r:
+                    store.update_outbound_status(r["id"], "enviado", enviado_em=now, erro=None)
+            store.log_event("outbound_sent", {"lead_id": lead_id, "canal": "email", "dry_run": res.get("dry_run")})
+            return {"ok": True, "canal": "email", "dry_run": res.get("dry_run")}
+        store.update_outbound_status(msg_id, "falhou", erro=res.get("erro"))
+        return {"ok": False, "erro": res.get("erro")}
+
+    # canais sem auto-envio: marca enviado manualmente
+    store.update_outbound_status(msg_id, "enviado", enviado_em=now, erro=None)
+    store.log_event("outbound_sent", {"lead_id": msg.get("lead_id"), "canal": canal, "manual": True})
+    return {"ok": True, "canal": canal, "manual": True}

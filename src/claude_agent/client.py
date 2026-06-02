@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -122,15 +123,28 @@ class GeminiClient:
             except Exception:
                 pass
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(**cfg_kwargs),
-            )
-        except Exception as e:
-            logger.error("Falha na chamada Gemini: %s", e)
-            raise
+        response = None
+        for attempt in range(3):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(**cfg_kwargs),
+                )
+                break
+            except Exception as e:
+                msg = str(e).lower()
+                transient = any(s in msg for s in (
+                    "429", "rate", "quota", "resource_exhausted", "503", "overload",
+                    "unavailable", "timeout", "deadline", "500", "internal",
+                ))
+                if attempt < 2 and transient:
+                    wait = 1.5 * (2 ** attempt)
+                    logger.warning("Gemini transitório (tentativa %d/3): %s — retry em %.1fs", attempt + 1, e, wait)
+                    time.sleep(wait)
+                    continue
+                logger.error("Falha na chamada Gemini: %s", e)
+                raise
 
         # Atualiza stats
         usage = getattr(response, "usage_metadata", None)

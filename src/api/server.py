@@ -29,8 +29,9 @@ from ..integrations.intercom import push_lead_to_intercom
 from ..jobs.monitor import run_monitor
 from ..jobs.rescore import run_rescore
 from ..jobs.scheduler import Scheduler
-from ..outbound.orchestrator import generate_and_store
-from ..output.csv_writer import write_leads_csv
+from ..outbound.orchestrator import generate_and_store, send_outbound
+from .auth import google_client_id, google_enabled, verify_google_id_token
+from ..output.csv_writer import hydrate_db_row, write_leads_csv
 from ..pipeline import run_pipeline
 from ..playbooks.library import get_library
 from ..playbooks.selector import select_playbooks_for_lead
@@ -72,8 +73,54 @@ SDR = SDRQueue(STORE)
 
 # ====== AUTH ======
 def _auth(token: str | None) -> None:
-    if token != API_TOKEN:
-        raise HTTPException(status_code=401, detail="Token inválido")
+    if token == API_TOKEN:
+        return
+    if STORE.get_session(token):
+        return
+    raise HTTPException(status_code=401, detail="Token inválido")
+
+
+def current_user(token: str | None) -> Optional[dict]:
+    """Usuário da sessão Google (ou None se for o token único/extensão)."""
+    if token and token != API_TOKEN:
+        return STORE.get_session(token)
+    return None
+
+
+class GoogleAuthPayload(BaseModel):
+    credential: str
+
+
+@app.get("/auth/config")
+def auth_config():
+    """Público: o frontend decide se mostra o 'Entrar com Google'."""
+    return {"google_enabled": google_enabled(), "client_id": google_client_id()}
+
+
+@app.post("/auth/google")
+def auth_google(payload: GoogleAuthPayload):
+    res = verify_google_id_token(payload.credential)
+    if not res.get("ok"):
+        raise HTTPException(401, res.get("erro") or "falha no login Google")
+    token = STORE.create_session(res["email"], res.get("nome"))
+    STORE.log_event("login", {"email": res["email"], "via": "google"})
+    return {"ok": True, "token": token, "email": res["email"], "nome": res.get("nome")}
+
+
+@app.get("/auth/me")
+def auth_me(x_api_token: Optional[str] = Header(default=None)):
+    u = current_user(x_api_token)
+    if u:
+        return {"autenticado": True, "email": u["email"], "nome": u.get("nome"), "via": "google"}
+    if x_api_token == API_TOKEN:
+        return {"autenticado": True, "email": None, "nome": "Token", "via": "token"}
+    raise HTTPException(401, "Não autenticado")
+
+
+@app.post("/auth/logout")
+def auth_logout(x_api_token: Optional[str] = Header(default=None)):
+    STORE.delete_session(x_api_token)
+    return {"ok": True}
 
 
 # ====== MODELS ======
@@ -117,6 +164,61 @@ def stats(x_api_token: str | None = Header(default=None)):
     return STORE.stats()
 
 
+@app.get("/sales/cockpit")
+def sales_cockpit(x_api_token: str | None = Header(default=None)):
+    """Painel 'Meu dia' do vendedor: hoje, atrasadas, aguardando resposta, quentes, funil."""
+    _auth(x_api_token)
+    dia_de, dia_ate = _period_bounds("hoje")
+    return STORE.cockpit(dia_de, dia_ate)
+
+
+@app.get("/sales/reminders")
+def sales_reminders(x_api_token: str | None = Header(default=None)):
+    """Feed de lembretes acionáveis (sino): atrasadas, hoje, follow-ups, respostas, quentes."""
+    _auth(x_api_token)
+    dia_de, dia_ate = _period_bounds("hoje")
+    return STORE.reminders(dia_de, dia_ate)
+
+
+def _build_ics(a: dict) -> str:
+    from datetime import datetime, timedelta
+
+    def fmt(dt) -> str:
+        return dt.strftime("%Y%m%dT%H%M%S")
+
+    def esc(s) -> str:
+        return str(s or "").replace("\\", "\\\\").replace("\n", "\\n").replace(",", "\\,").replace(";", "\\;")
+
+    ini = (a.get("inicio_em") or "")[:16]
+    try:
+        start = datetime.fromisoformat(ini) if ini else datetime.now()
+    except ValueError:
+        start = datetime.now()
+    end = start + timedelta(minutes=int(a.get("duracao_min") or 30))
+    linhas = [
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Solvefy//SolveScraper//PT", "BEGIN:VEVENT",
+        f"UID:atividade-{a.get('id')}@solvescraper", f"DTSTART:{fmt(start)}", f"DTEND:{fmt(end)}",
+        f"SUMMARY:{esc(a.get('titulo') or 'Atividade')}",
+        f"LOCATION:{esc(a.get('cliente_empresa'))}",
+        f"DESCRIPTION:{esc(a.get('descricao'))}",
+        "END:VEVENT", "END:VCALENDAR",
+    ]
+    return "\r\n".join(linhas) + "\r\n"
+
+
+@app.get("/atividades/{atividade_id:int}/calendar.ics")
+def atividade_ics(atividade_id: int, x_api_token: str | None = Header(default=None)):
+    _auth(x_api_token)
+    a = STORE.get_atividade(atividade_id)
+    if not a:
+        raise HTTPException(404, "Atividade não encontrada")
+    return StreamingResponse(
+        iter([_build_ics(a)]),
+        media_type="text/calendar",
+        headers={"Content-Disposition": f"attachment; filename=atividade-{atividade_id}.ics"},
+    )
+
+
 @app.get("/db/leads")
 def db_leads(
     vertical: str | None = Query(default=None),
@@ -142,6 +244,27 @@ def db_lead_detail(lead_id: int, x_api_token: str | None = Header(default=None))
     return {"lead": dict(row), "outbound": [dict(o) for o in outbound]}
 
 
+PIPELINE_STATUS_VALIDO = {"em_andamento", "ganho", "congelado", "perdido"}
+
+
+class LeadPatch(BaseModel):
+    pipeline_status: Optional[str] = None
+
+
+@app.patch("/db/leads/{lead_id:int}")
+def db_lead_update(lead_id: int, payload: LeadPatch, x_api_token: str | None = Header(default=None)):
+    _auth(x_api_token)
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(400, "Nada para atualizar")
+    if "pipeline_status" in fields and fields["pipeline_status"] not in PIPELINE_STATUS_VALIDO:
+        raise HTTPException(400, f"pipeline_status inválido (use {sorted(PIPELINE_STATUS_VALIDO)})")
+    if not STORE.update_lead_fields(lead_id, fields):
+        raise HTTPException(404, "Lead não encontrado ou nada alterado")
+    STORE.log_event("lead_pipeline_status", {"lead_id": lead_id, **fields})
+    return {"ok": True, "lead_id": lead_id, **fields}
+
+
 @app.get("/db/export.csv")
 def db_export_csv(
     vertical: str | None = Query(default=None),
@@ -155,14 +278,14 @@ def db_export_csv(
 
     buf = io.StringIO()
     cols = [
-        "vertical", "empresa", "cnpj", "razao_social", "site", "decisor_nome",
-        "decisor_cargo", "decisor_linkedin", "email_provavel", "porte_estimado",
-        "score_icp", "recomendacao", "gatilho_personalizado", "observacoes",
-        "fonte", "criado_em", "atualizado_em",
+        "vertical", "segmento", "empresa", "cnpj", "razao_social", "site", "decisor_nome",
+        "decisor_cargo", "decisor_linkedin", "email_provavel", "email_validado", "telefone",
+        "porte_estimado", "score_icp", "recomendacao", "gatilho_personalizado", "observacoes",
+        "fonte", "data_coleta", "criado_em", "atualizado_em",
     ]
     w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
     w.writeheader()
-    w.writerows(leads)
+    w.writerows(hydrate_db_row(l) for l in leads)
     buf.seek(0)
 
     return StreamingResponse(
@@ -369,6 +492,79 @@ def outbound_generate(lead_id: int, x_api_token: str | None = Header(default=Non
     except Exception as e:
         logger.exception("Geração de outbound falhou: %s", e)
         raise HTTPException(500, str(e))
+
+
+class OutboundPatch(BaseModel):
+    status: str  # aprovado | rejeitado
+
+
+class ReplyPayload(BaseModel):
+    msg_id: Optional[int] = None
+    lead_id: Optional[int] = None
+    nota: Optional[str] = None
+
+
+@app.get("/outbound")
+def outbound_list(
+    status: Optional[str] = Query(default=None),
+    limit: int = Query(default=200, le=1000),
+    x_api_token: str | None = Header(default=None),
+):
+    _auth(x_api_token)
+    msgs = STORE.all_outbound(status=status, limit=limit)
+    return {"mensagens": msgs, "count": len(msgs)}
+
+
+@app.patch("/outbound/{msg_id:int}")
+def outbound_update(msg_id: int, payload: OutboundPatch, x_api_token: str | None = Header(default=None)):
+    _auth(x_api_token)
+    if payload.status not in ("aprovado", "rejeitado"):
+        raise HTTPException(400, "status deve ser 'aprovado' ou 'rejeitado'")
+    if not STORE.outbound_message(msg_id):
+        raise HTTPException(404, "Mensagem não encontrada")
+    STORE.update_outbound_status(msg_id, payload.status, erro=None)
+    STORE.log_event("outbound_status", {"id": msg_id, "status": payload.status})
+    return {"ok": True, "mensagem": STORE.outbound_message(msg_id)}
+
+
+@app.post("/outbound/{msg_id:int}/send")
+def outbound_send(msg_id: int, x_api_token: str | None = Header(default=None)):
+    _auth(x_api_token)
+    res = send_outbound(msg_id, store=STORE)
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("erro") or "falha ao enviar")
+    return {"ok": True, **res, "mensagem": STORE.outbound_message(msg_id)}
+
+
+@app.post("/outbound/{msg_id:int}/reply")
+def outbound_reply(msg_id: int, x_api_token: str | None = Header(default=None)):
+    _auth(x_api_token)
+    msg = STORE.outbound_message(msg_id)
+    if not msg:
+        raise HTTPException(404, "Mensagem não encontrada")
+    now = datetime.now().isoformat(timespec="seconds")
+    STORE.update_outbound_status(msg_id, "respondido", respondido_em=now)
+    if msg.get("lead_id"):
+        STORE.update_lead_fields(msg["lead_id"], {"sdr_status": "respondeu", "sdr_status_at": now})
+    STORE.log_event("outbound_reply", {"id": msg_id, "lead_id": msg.get("lead_id")})
+    return {"ok": True, "mensagem": STORE.outbound_message(msg_id)}
+
+
+@app.post("/webhook/outbound/reply")
+def outbound_webhook_reply(payload: ReplyPayload, x_api_token: str | None = Header(default=None)):
+    """Webhook para CPaaS/parser futuro marcar resposta por msg_id ou lead_id."""
+    _auth(x_api_token)
+    now = datetime.now().isoformat(timespec="seconds")
+    lead_id = payload.lead_id
+    if payload.msg_id:
+        STORE.update_outbound_status(payload.msg_id, "respondido", respondido_em=now)
+        m = STORE.outbound_message(payload.msg_id)
+        if m and m.get("lead_id"):
+            lead_id = m["lead_id"]
+    if lead_id:
+        STORE.update_lead_fields(lead_id, {"sdr_status": "respondeu", "sdr_status_at": now})
+    STORE.log_event("outbound_reply_webhook", {"msg_id": payload.msg_id, "lead_id": lead_id})
+    return {"ok": True}
 
 
 # ====== INTERCOM ======
@@ -578,6 +774,245 @@ def enrich_lead(lead_id: int, x_api_token: Optional[str] = Header(default=None))
     """Enriquece um lead único sob demanda."""
     _auth(x_api_token)
     return enrich_and_save(lead_id, store=STORE)
+
+
+# ====== ATIVIDADES (vendas / oportunidades) ======
+
+
+class AtividadePayload(BaseModel):
+    lead_id: Optional[int] = None
+    titulo: Optional[str] = None
+    natureza: str = "evento"            # evento | tarefa | lembrete
+    tipo: Optional[str] = None          # ligacao | videochamada | email | visita | almoco | personalizado
+    inicio_em: Optional[str] = None     # ISO8601
+    duracao_min: Optional[int] = None
+    dia_inteiro: bool = False
+    repeticao: str = "nenhuma"
+    temperatura: Optional[str] = None   # muito_quente | quente | frio | muito_frio
+    pipeline: str = "potencial_cliente"
+    responsavel: Optional[str] = None
+    contato_nome: Optional[str] = None
+    descricao: Optional[str] = None
+    tags: Optional[list[str]] = None
+    status: str = "a_fazer"
+
+
+class AtividadePatch(BaseModel):
+    lead_id: Optional[int] = None
+    titulo: Optional[str] = None
+    natureza: Optional[str] = None
+    tipo: Optional[str] = None
+    inicio_em: Optional[str] = None
+    duracao_min: Optional[int] = None
+    dia_inteiro: Optional[bool] = None
+    repeticao: Optional[str] = None
+    temperatura: Optional[str] = None
+    pipeline: Optional[str] = None
+    responsavel: Optional[str] = None
+    contato_nome: Optional[str] = None
+    descricao: Optional[str] = None
+    tags: Optional[list[str]] = None
+    status: Optional[str] = None
+
+
+def _period_bounds(periodo: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """Converte 'hoje'/'semana'/'mes' em limites ISO [início, fim) para inicio_em."""
+    from datetime import timedelta
+
+    if not periodo or periodo == "todos":
+        return None, None
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    if periodo == "hoje":
+        start, end = today, today + timedelta(days=1)
+    elif periodo == "semana":
+        start = today - timedelta(days=today.weekday())
+        end = start + timedelta(days=7)
+    elif periodo == "mes":
+        start = today.replace(day=1)
+        end = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    else:
+        return None, None
+    return start.isoformat(), end.isoformat()
+
+
+@app.get("/atividades")
+def atividades_list(
+    responsavel: Optional[str] = Query(default=None),
+    periodo: Optional[str] = Query(default=None),
+    tipo: Optional[str] = Query(default=None),
+    temperatura: Optional[str] = Query(default=None),
+    pipeline: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    lead_id: Optional[int] = Query(default=None),
+    limit: int = Query(default=500, le=2000),
+    order: str = Query(default="asc"),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    inicio_de, inicio_ate = _period_bounds(periodo)
+    items = STORE.list_atividades(
+        responsavel=responsavel,
+        tipo=tipo,
+        temperatura=temperatura,
+        pipeline=pipeline,
+        status=status,
+        lead_id=lead_id,
+        inicio_de=inicio_de,
+        inicio_ate=inicio_ate,
+        limit=limit,
+        order=order,
+    )
+    return {"atividades": items, "count": len(items)}
+
+
+@app.post("/atividades")
+def atividades_create(payload: AtividadePayload, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    data = payload.model_dump()
+    if not data.get("responsavel"):
+        u = current_user(x_api_token)
+        if u:
+            data["responsavel"] = u["email"]
+    aid = STORE.create_atividade(data)
+    STORE.log_event(
+        "atividade_criada",
+        {"atividade_id": aid, "titulo": payload.titulo, "pipeline": payload.pipeline},
+    )
+    return {"ok": True, "id": aid, "atividade": STORE.get_atividade(aid)}
+
+
+@app.get("/atividades/{atividade_id:int}")
+def atividades_detail(atividade_id: int, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    atv = STORE.get_atividade(atividade_id)
+    if not atv:
+        raise HTTPException(404, "Atividade não encontrada")
+    return {"atividade": atv}
+
+
+@app.patch("/atividades/{atividade_id:int}")
+def atividades_update(
+    atividade_id: int,
+    payload: AtividadePatch,
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(400, "Nada para atualizar")
+    if not STORE.update_atividade(atividade_id, fields):
+        raise HTTPException(404, "Atividade não encontrada ou nada alterado")
+    if "status" in fields or "pipeline" in fields:
+        STORE.log_event(
+            "atividade_status",
+            {"atividade_id": atividade_id, **{k: fields[k] for k in ("status", "pipeline") if k in fields}},
+        )
+    return {"ok": True, "atividade": STORE.get_atividade(atividade_id)}
+
+
+def _range_bounds(ref: Optional[str], escala: str) -> tuple[str, str]:
+    """Limites ISO [início, fim) para a janela de tempo (mes/semana/trimestre/ano)."""
+    from datetime import timedelta
+
+    base = datetime.now()
+    if ref:
+        try:
+            base = datetime.fromisoformat(ref[:10])
+        except ValueError:
+            pass
+    base = base.replace(hour=0, minute=0, second=0, microsecond=0)
+    if escala == "semana":
+        start = base - timedelta(days=(base.weekday() + 1) % 7)  # semana começa no domingo
+        end = start + timedelta(days=7)
+    elif escala == "trimestre":
+        qm = ((base.month - 1) // 3) * 3 + 1
+        start = base.replace(month=qm, day=1)
+        nm, ny = qm + 3, base.year
+        if nm > 12:
+            nm, ny = nm - 12, ny + 1
+        end = start.replace(year=ny, month=nm, day=1)
+    elif escala == "ano":
+        start = base.replace(month=1, day=1)
+        end = start.replace(year=start.year + 1)
+    else:  # mes
+        start = base.replace(day=1)
+        end = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return start.isoformat(), end.isoformat()
+
+
+@app.get("/atividades/calendario")
+def atividades_calendario(
+    ref: Optional[str] = Query(default=None),
+    escala: str = Query(default="mes"),
+    responsavel: Optional[str] = Query(default=None),
+    tipo: Optional[str] = Query(default=None),
+    temperatura: Optional[str] = Query(default=None),
+    pipeline: Optional[str] = Query(default=None),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    inicio, fim = _range_bounds(ref, "semana" if escala == "semana" else "mes")
+    items = STORE.list_atividades(
+        responsavel=responsavel, tipo=tipo, temperatura=temperatura, pipeline=pipeline,
+        inicio_de=inicio, inicio_ate=fim, limit=2000,
+    )
+    return {"escala": escala, "inicio": inicio, "fim": fim, "atividades": items}
+
+
+@app.get("/atividades/timeline")
+def atividades_timeline(
+    ref: Optional[str] = Query(default=None),
+    escala: str = Query(default="mes"),
+    responsavel: Optional[str] = Query(default=None),
+    tipo: Optional[str] = Query(default=None),
+    temperatura: Optional[str] = Query(default=None),
+    pipeline: Optional[str] = Query(default=None),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    esc = escala if escala in ("mes", "trimestre", "ano") else "mes"
+    inicio, fim = _range_bounds(ref, esc)
+    items = STORE.list_atividades(
+        responsavel=responsavel, tipo=tipo, temperatura=temperatura, pipeline=pipeline,
+        inicio_de=inicio, inicio_ate=fim, limit=5000,
+    )
+
+    grupos: dict[int, dict] = {}
+    sem_lead: list[dict] = []
+    for a in items:
+        rec = {
+            "id": a["id"], "inicio_em": a["inicio_em"], "tipo": a["tipo"],
+            "temperatura": a["temperatura"], "titulo": a["titulo"], "pipeline": a["pipeline"],
+        }
+        lid = a.get("lead_id")
+        if not lid:
+            sem_lead.append(rec)
+            continue
+        g = grupos.setdefault(lid, {
+            "lead_id": lid,
+            "empresa": a.get("cliente_empresa") or f"Lead #{lid}",
+            "status": a.get("cliente_status"),
+            "atividades": [],
+        })
+        g["atividades"].append(rec)
+        if a.get("pipeline") == "pos_venda" and not g["status"]:
+            g["status"] = "ganho"
+
+    oportunidades = []
+    for g in grupos.values():
+        datas = sorted([x["inicio_em"][:10] for x in g["atividades"] if x["inicio_em"]])
+        ciclo = 0
+        if len(datas) >= 2:
+            try:
+                ciclo = (datetime.fromisoformat(datas[-1]) - datetime.fromisoformat(datas[0])).days
+            except ValueError:
+                ciclo = 0
+        g["ciclo_dias"] = ciclo
+        g["status"] = g["status"] or "em_andamento"
+        oportunidades.append(g)
+    oportunidades.sort(key=lambda x: x["empresa"].lower())
+
+    return {"escala": esc, "inicio": inicio, "fim": fim, "oportunidades": oportunidades, "sem_lead": sem_lead}
 
 
 def start():

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -88,3 +90,47 @@ def write_apollo_csv(
     df.to_csv(path, index=False, encoding="utf-8-sig")
     logger.info("CSV Apollo salvo: %s", path)
     return path
+
+
+def hydrate_db_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Enriquece uma linha do DB com campos que vivem só no payload_json.
+
+    A tabela `leads` não tem colunas próprias para `segmento`, `status_licenca`
+    nem `data_coleta` — elas ficam no `payload_json` (e `data_coleta` cai para
+    `criado_em`). Sem isso, o CSV exportado do DB sairia com essas colunas vazias.
+    """
+    out = dict(row)
+    raw = out.get("payload_json") or "{}"
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else (raw or {})
+    except (json.JSONDecodeError, TypeError):
+        payload = {}
+
+    out["segmento"] = out.get("segmento") or payload.get("segmento")
+    out["status_licenca"] = out.get("status_licenca") or payload.get("status_licenca")
+    out["data_coleta"] = out.get("data_coleta") or payload.get("data_coleta") or out.get("criado_em")
+    # telefone pode existir só no payload (leads coletados antes da coluna telefone)
+    out["telefone"] = out.get("telefone") or payload.get("telefone")
+    return out
+
+
+def export_db_to_csv(
+    store: Any,
+    vertical: str | None = None,
+    min_score: int = 0,
+    limit: int = 10000,
+    output_dir: Path = Path("data/output"),
+    vertical_tag: str | None = None,
+) -> Path | None:
+    """Exporta leads do DB (já enriquecidos) para CSV padronizado.
+
+    Diferente de `write_leads_csv`, lê do banco — então reflete os decisores,
+    e-mails validados e telefones gravados pela etapa de enrichment web.
+    """
+    leads = store.all_leads(vertical=vertical, min_score=min_score, limit=limit)
+    if not leads:
+        logger.warning("Nenhum lead no DB para exportar (vertical=%s, min_score=%s)", vertical, min_score)
+        return None
+    hydrated = [hydrate_db_row(l) for l in leads]
+    tag = vertical_tag or (vertical if vertical and vertical != "all" else "db")
+    return write_leads_csv(hydrated, output_dir=output_dir, vertical_tag=tag)
