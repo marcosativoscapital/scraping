@@ -30,6 +30,7 @@ from ..jobs.monitor import run_monitor
 from ..jobs.rescore import run_rescore
 from ..jobs.scheduler import Scheduler
 from ..outbound.orchestrator import generate_and_store, send_outbound
+from .auth import google_client_id, google_enabled, verify_google_id_token
 from ..output.csv_writer import hydrate_db_row, write_leads_csv
 from ..pipeline import run_pipeline
 from ..playbooks.library import get_library
@@ -72,8 +73,54 @@ SDR = SDRQueue(STORE)
 
 # ====== AUTH ======
 def _auth(token: str | None) -> None:
-    if token != API_TOKEN:
-        raise HTTPException(status_code=401, detail="Token inválido")
+    if token == API_TOKEN:
+        return
+    if STORE.get_session(token):
+        return
+    raise HTTPException(status_code=401, detail="Token inválido")
+
+
+def current_user(token: str | None) -> Optional[dict]:
+    """Usuário da sessão Google (ou None se for o token único/extensão)."""
+    if token and token != API_TOKEN:
+        return STORE.get_session(token)
+    return None
+
+
+class GoogleAuthPayload(BaseModel):
+    credential: str
+
+
+@app.get("/auth/config")
+def auth_config():
+    """Público: o frontend decide se mostra o 'Entrar com Google'."""
+    return {"google_enabled": google_enabled(), "client_id": google_client_id()}
+
+
+@app.post("/auth/google")
+def auth_google(payload: GoogleAuthPayload):
+    res = verify_google_id_token(payload.credential)
+    if not res.get("ok"):
+        raise HTTPException(401, res.get("erro") or "falha no login Google")
+    token = STORE.create_session(res["email"], res.get("nome"))
+    STORE.log_event("login", {"email": res["email"], "via": "google"})
+    return {"ok": True, "token": token, "email": res["email"], "nome": res.get("nome")}
+
+
+@app.get("/auth/me")
+def auth_me(x_api_token: Optional[str] = Header(default=None)):
+    u = current_user(x_api_token)
+    if u:
+        return {"autenticado": True, "email": u["email"], "nome": u.get("nome"), "via": "google"}
+    if x_api_token == API_TOKEN:
+        return {"autenticado": True, "email": None, "nome": "Token", "via": "token"}
+    raise HTTPException(401, "Não autenticado")
+
+
+@app.post("/auth/logout")
+def auth_logout(x_api_token: Optional[str] = Header(default=None)):
+    STORE.delete_session(x_api_token)
+    return {"ok": True}
 
 
 # ====== MODELS ======
@@ -774,7 +821,12 @@ def atividades_list(
 @app.post("/atividades")
 def atividades_create(payload: AtividadePayload, x_api_token: Optional[str] = Header(default=None)):
     _auth(x_api_token)
-    aid = STORE.create_atividade(payload.model_dump())
+    data = payload.model_dump()
+    if not data.get("responsavel"):
+        u = current_user(x_api_token)
+        if u:
+            data["responsavel"] = u["email"]
+    aid = STORE.create_atividade(data)
     STORE.log_event(
         "atividade_criada",
         {"atividade_id": aid, "titulo": payload.titulo, "pipeline": payload.pipeline},

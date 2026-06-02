@@ -320,3 +320,21 @@
 .ck-funil__row { display: grid; grid-template-columns: 130px 1fr 44px; align-items: center; gap: 10px; }
 .ck-funil__label { font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--color-text-secondary); }
 .ck-funil__count { font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--color-text-primary); text-align: right; }
+
+/* ============ Login gate (Google) ============ */
+.login-gate { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: var(--color-bg-secondary); }
+.login-gate[hidden] { display: none; }
+.login-card {
+  background: var(--color-bg-primary); border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-xs); padding: 40px;
+  width: 360px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; gap: 12px; align-items: flex-start;
+}
+.login-card__brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: var(--font-bold); color: var(--color-text-primary); }
+.login-card h1 { font-family: var(--font-display); font-size: var(--text-display-xs); letter-spacing: -0.02em; margin: 8px 0 0; color: var(--color-text-primary); }
+.login-card p { font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0; }
+.login-gbtn { margin-top: 8px; min-height: 44px; }
+.login-err { color: var(--color-fg-error-primary); font-size: var(--text-xs); min-height: 16px; margin: 0; }
+.auth-user { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.auth-user__name { font-size: var(--text-xs); font-weight: var(--font-semibold); color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.auth-logout { appearance: none; background: none; border: 0; cursor: pointer; font-size: var(--text-xs); font-weight: var(--font-semibold); color: var(--color-fg-brand-primary); }
+.auth-logout:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }

@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="app.css" />
   <link rel="stylesheet" href="opportunities.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <!-- SVG sprite -->
@@ -41,6 +42,20 @@
       <symbol id="i-star" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.2l1-5.8L3.5 9.2l5.9-.9L12 3z"/></symbol>
     </defs>
   </svg>
+
+  <!-- Login gate (Google) — aparece só quando GOOGLE_CLIENT_ID está configurado -->
+  <div class="login-gate" id="login-gate" hidden>
+    <div class="login-card">
+      <div class="login-card__brand">
+        <span class="brand-mark"><svg width="24" height="24"><use href="#i-logo"/></svg></span>
+        <span class="brand-name">Solve Scraper</span>
+      </div>
+      <h1>Entrar</h1>
+      <p>Acesse com sua conta Google da empresa.</p>
+      <div id="gbtn" class="login-gbtn"></div>
+      <p class="login-err" id="login-err"></p>
+    </div>
+  </div>
 
   <div class="app">
     <!-- Sidebar -->
@@ -90,6 +105,7 @@
         </button>
       </nav>
       <div class="sidebar__footer">
+        <div class="auth-user" id="auth-user"></div>
         <div class="status-pill" id="server-status">
           <span class="dot"></span><span class="label">Verificando…</span>
         </div>

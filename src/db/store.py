@@ -7,9 +7,10 @@ e re-scoring).
 from __future__ import annotations
 
 import json
+import secrets
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -131,6 +132,15 @@ CREATE INDEX IF NOT EXISTS idx_atv_inicio ON atividades(inicio_em);
 CREATE INDEX IF NOT EXISTS idx_atv_pipeline ON atividades(pipeline);
 CREATE INDEX IF NOT EXISTS idx_atv_status ON atividades(status);
 CREATE INDEX IF NOT EXISTS idx_atv_responsavel ON atividades(responsavel);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    nome TEXT,
+    criado_em TEXT NOT NULL,
+    expira_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_email ON sessions(email);
 
 -- Colunas adicionais em leads (atribuição + status SDR)
 """
@@ -496,6 +506,37 @@ class Store:
                 "SELECT * FROM events ORDER BY criado_em DESC LIMIT ?", (limit,)
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ====== Sessions (auth) ======
+
+    def create_session(self, email: str, nome: str | None = None, dias: int = 30) -> str:
+        token = secrets.token_urlsafe(32)
+        now = datetime.now()
+        with self.conn() as c:
+            c.execute(
+                "INSERT INTO sessions (token, email, nome, criado_em, expira_em) VALUES (?,?,?,?,?)",
+                (token, email, nome, now.isoformat(), (now + timedelta(days=dias)).isoformat()),
+            )
+        return token
+
+    def get_session(self, token: str | None) -> dict | None:
+        if not token:
+            return None
+        with self.conn() as c:
+            row = c.execute("SELECT * FROM sessions WHERE token=?", (token,)).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        if d.get("expira_em") and d["expira_em"] < datetime.now().isoformat():
+            self.delete_session(token)
+            return None
+        return d
+
+    def delete_session(self, token: str | None) -> None:
+        if not token:
+            return
+        with self.conn() as c:
+            c.execute("DELETE FROM sessions WHERE token=?", (token,))
 
     # ====== Atividades (vendas / oportunidades) ======
 

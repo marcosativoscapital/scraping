@@ -1554,10 +1554,71 @@
   document.getElementById('modal-close').addEventListener('click', closeModal);
   document.querySelector('.modal__backdrop').addEventListener('click', closeModal);
 
-  // ====== INIT ======
-  document.addEventListener('DOMContentLoaded', () => {
+  // ====== AUTH (login Google, com fallback ao token) ======
+  function enterApp() {
     checkHealth();
     loadOverview();
     setInterval(checkHealth, 10000);
-  });
+    refreshAuthFooter();
+  }
+  async function refreshAuthFooter() {
+    try {
+      const me = await api('/auth/me');
+      const el = document.getElementById('auth-user');
+      if (el && me && me.autenticado && me.via === 'google') {
+        el.innerHTML = `<span class="auth-user__name">${escapeHtml(me.nome || me.email || '')}</span><button class="auth-logout" id="btn-logout">Sair</button>`;
+        const lo = document.getElementById('btn-logout');
+        if (lo) lo.addEventListener('click', async () => {
+          try { await api('/auth/logout', { method: 'POST' }); } catch (e) {}
+          localStorage.removeItem('apiToken');
+          location.reload();
+        });
+      }
+    } catch (e) { /* modo token: sem footer de usuário */ }
+  }
+  async function onGoogleCredential(resp) {
+    const err = document.getElementById('login-err');
+    if (err) err.textContent = '';
+    try {
+      const r = await fetch(`${API_URL}/auth/google`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: resp.credential }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      API_TOKEN = data.token;
+      localStorage.setItem('apiToken', data.token);
+      const gate = document.getElementById('login-gate');
+      if (gate) gate.hidden = true;
+      enterApp();
+    } catch (e) {
+      if (err) err.textContent = 'Falha no login. Confira o domínio autorizado e tente novamente.';
+    }
+  }
+  function showLoginGate(clientId) {
+    const gate = document.getElementById('login-gate');
+    if (gate) gate.hidden = false;
+    let tries = 0;
+    (function initGis() {
+      if (window.google && google.accounts && google.accounts.id) {
+        google.accounts.id.initialize({ client_id: clientId, callback: onGoogleCredential });
+        google.accounts.id.renderButton(document.getElementById('gbtn'), { theme: 'outline', size: 'large', text: 'signin_with', locale: 'pt-BR' });
+      } else if (tries++ < 40) {
+        setTimeout(initGis, 200);
+      }
+    })();
+  }
+  async function bootstrapAuth() {
+    let cfg = { google_enabled: false };
+    try { cfg = await fetch(`${API_URL}/auth/config`).then((r) => r.json()); } catch (e) {}
+    if (!cfg.google_enabled) { enterApp(); return; }
+    try {
+      const me = await api('/auth/me');
+      if (me && me.autenticado) { enterApp(); return; }
+    } catch (e) { /* 401 → mostra o gate */ }
+    showLoginGate(cfg.client_id);
+  }
+
+  // ====== INIT ======
+  document.addEventListener('DOMContentLoaded', bootstrapAuth);
 })();
