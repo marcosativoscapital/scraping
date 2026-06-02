@@ -293,6 +293,22 @@
             </div>
             <div id="outbound-messages" class="outbound-messages"></div>
           </div>
+
+          <div class="card">
+            <div class="card__head">
+              <h2>Fila de envio</h2>
+              <p class="card__sub">Aprove, envie (e-mail via SMTP) e acompanhe o status de cada mensagem.</p>
+            </div>
+            <div class="ob-filters" id="ob-filters">
+              <button class="ob-chip is-active" data-obf="">Todos</button>
+              <button class="ob-chip" data-obf="rascunho">Rascunho</button>
+              <button class="ob-chip" data-obf="aprovado">Aprovado</button>
+              <button class="ob-chip" data-obf="enviado">Enviado</button>
+              <button class="ob-chip" data-obf="respondido">Respondido</button>
+              <button class="ob-chip" data-obf="rejeitado">Rejeitado</button>
+            </div>
+            <div id="outbound-queue" class="ob-queue"></div>
+          </div>
         </section>
 
         <!-- ============== SDR ============== -->

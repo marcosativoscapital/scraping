@@ -29,7 +29,7 @@ from ..integrations.intercom import push_lead_to_intercom
 from ..jobs.monitor import run_monitor
 from ..jobs.rescore import run_rescore
 from ..jobs.scheduler import Scheduler
-from ..outbound.orchestrator import generate_and_store
+from ..outbound.orchestrator import generate_and_store, send_outbound
 from ..output.csv_writer import hydrate_db_row, write_leads_csv
 from ..pipeline import run_pipeline
 from ..playbooks.library import get_library
@@ -390,6 +390,79 @@ def outbound_generate(lead_id: int, x_api_token: str | None = Header(default=Non
     except Exception as e:
         logger.exception("Geração de outbound falhou: %s", e)
         raise HTTPException(500, str(e))
+
+
+class OutboundPatch(BaseModel):
+    status: str  # aprovado | rejeitado
+
+
+class ReplyPayload(BaseModel):
+    msg_id: Optional[int] = None
+    lead_id: Optional[int] = None
+    nota: Optional[str] = None
+
+
+@app.get("/outbound")
+def outbound_list(
+    status: Optional[str] = Query(default=None),
+    limit: int = Query(default=200, le=1000),
+    x_api_token: str | None = Header(default=None),
+):
+    _auth(x_api_token)
+    msgs = STORE.all_outbound(status=status, limit=limit)
+    return {"mensagens": msgs, "count": len(msgs)}
+
+
+@app.patch("/outbound/{msg_id:int}")
+def outbound_update(msg_id: int, payload: OutboundPatch, x_api_token: str | None = Header(default=None)):
+    _auth(x_api_token)
+    if payload.status not in ("aprovado", "rejeitado"):
+        raise HTTPException(400, "status deve ser 'aprovado' ou 'rejeitado'")
+    if not STORE.outbound_message(msg_id):
+        raise HTTPException(404, "Mensagem não encontrada")
+    STORE.update_outbound_status(msg_id, payload.status, erro=None)
+    STORE.log_event("outbound_status", {"id": msg_id, "status": payload.status})
+    return {"ok": True, "mensagem": STORE.outbound_message(msg_id)}
+
+
+@app.post("/outbound/{msg_id:int}/send")
+def outbound_send(msg_id: int, x_api_token: str | None = Header(default=None)):
+    _auth(x_api_token)
+    res = send_outbound(msg_id, store=STORE)
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("erro") or "falha ao enviar")
+    return {"ok": True, **res, "mensagem": STORE.outbound_message(msg_id)}
+
+
+@app.post("/outbound/{msg_id:int}/reply")
+def outbound_reply(msg_id: int, x_api_token: str | None = Header(default=None)):
+    _auth(x_api_token)
+    msg = STORE.outbound_message(msg_id)
+    if not msg:
+        raise HTTPException(404, "Mensagem não encontrada")
+    now = datetime.now().isoformat(timespec="seconds")
+    STORE.update_outbound_status(msg_id, "respondido", respondido_em=now)
+    if msg.get("lead_id"):
+        STORE.update_lead_fields(msg["lead_id"], {"sdr_status": "respondeu", "sdr_status_at": now})
+    STORE.log_event("outbound_reply", {"id": msg_id, "lead_id": msg.get("lead_id")})
+    return {"ok": True, "mensagem": STORE.outbound_message(msg_id)}
+
+
+@app.post("/webhook/outbound/reply")
+def outbound_webhook_reply(payload: ReplyPayload, x_api_token: str | None = Header(default=None)):
+    """Webhook para CPaaS/parser futuro marcar resposta por msg_id ou lead_id."""
+    _auth(x_api_token)
+    now = datetime.now().isoformat(timespec="seconds")
+    lead_id = payload.lead_id
+    if payload.msg_id:
+        STORE.update_outbound_status(payload.msg_id, "respondido", respondido_em=now)
+        m = STORE.outbound_message(payload.msg_id)
+        if m and m.get("lead_id"):
+            lead_id = m["lead_id"]
+    if lead_id:
+        STORE.update_lead_fields(lead_id, {"sdr_status": "respondeu", "sdr_status_at": now})
+    STORE.log_event("outbound_reply_webhook", {"msg_id": payload.msg_id, "lead_id": lead_id})
+    return {"ok": True}
 
 
 # ====== INTERCOM ======

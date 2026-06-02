@@ -333,6 +333,83 @@
     } catch (e) {
       console.error(e);
     }
+    if (!_obBound) {
+      _obBound = true;
+      const f = document.getElementById('ob-filters');
+      if (f) f.addEventListener('click', (e) => {
+        const b = e.target.closest('.ob-chip');
+        if (!b) return;
+        _obFilter = b.dataset.obf || '';
+        document.querySelectorAll('#ob-filters .ob-chip').forEach((x) => x.classList.toggle('is-active', x === b));
+        loadOutboundQueue();
+      });
+    }
+    loadOutboundQueue();
+  }
+
+  // ---- Fila de outbound ----
+  const OB_CHAN = { sms: 'SMS', email_body: 'E-mail', linkedin_connection: 'LinkedIn · Convite', linkedin_followup: 'LinkedIn · Follow-up' };
+  const OB_STATUS = {
+    rascunho: 'badge', aprovado: 'badge badge--brand', enviado: 'badge badge--success',
+    respondido: 'badge badge--success', rejeitado: 'badge', falhou: 'badge badge--warning',
+  };
+  let _obFilter = '';
+  let _obBound = false;
+
+  function obBtn(act, id, label, variant) {
+    return `<button class="btn btn--${variant} btn--sm" data-act="${act}" data-id="${id}">${label}</button>`;
+  }
+  function obItem(m, subject) {
+    const badgeCls = OB_STATUS[m.status] || 'badge';
+    const isEmail = m.canal === 'email_body';
+    const label = OB_CHAN[m.canal] || m.canal;
+    let actions = '';
+    if (m.status === 'rascunho') actions = obBtn('aprovar', m.id, 'Aprovar', 'primary') + obBtn('rejeitar', m.id, 'Rejeitar', 'secondary');
+    else if (m.status === 'aprovado') actions = obBtn('enviar', m.id, 'Enviar', 'primary') + obBtn('rejeitar', m.id, 'Rejeitar', 'secondary');
+    else if (m.status === 'enviado') actions = obBtn('responder', m.id, 'Marcar respondido', 'secondary');
+    else if (m.status === 'falhou') actions = obBtn('aprovar', m.id, 'Tentar de novo', 'secondary');
+    return `<div class="ob-item">
+      <div class="ob-item__top"><span class="ob-chan">${label}</span><span class="${badgeCls}">${m.status}</span></div>
+      <div class="ob-item__company">${escapeHtml(m.lead_empresa || '—')}${isEmail && m.lead_email ? ' · ' + escapeHtml(m.lead_email) : ''}</div>
+      ${isEmail && subject ? `<div class="ob-item__subject">Assunto: ${escapeHtml(subject)}</div>` : ''}
+      <div class="ob-item__body">${escapeHtml(m.mensagem || '')}</div>
+      ${m.erro ? `<div class="ob-item__erro">Erro: ${escapeHtml(m.erro)}</div>` : ''}
+      <div class="ob-item__actions">${actions}</div>
+    </div>`;
+  }
+  async function loadOutboundQueue() {
+    const root = document.getElementById('outbound-queue');
+    if (!root) return;
+    root.innerHTML = '<div class="ob-empty">Carregando…</div>';
+    try {
+      const data = await api('/outbound' + (_obFilter ? '?status=' + _obFilter : ''));
+      const msgs = data.mensagens || [];
+      const subj = {};
+      msgs.forEach((m) => { if (m.canal === 'email_subject') subj[m.lead_id] = m.mensagem; });
+      const items = msgs.filter((m) => m.canal !== 'email_subject'); // colapsa o assunto no e-mail
+      if (!items.length) { root.innerHTML = '<div class="ob-empty">Nada na fila.</div>'; return; }
+      root.innerHTML = items.map((m) => obItem(m, subj[m.lead_id])).join('');
+      root.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => obAction(b.dataset.act, b.dataset.id)));
+    } catch (e) {
+      root.innerHTML = `<div class="ob-empty">Erro: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+  async function obAction(act, id) {
+    try {
+      if (act === 'aprovar') await api('/outbound/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'aprovado' }) });
+      else if (act === 'rejeitar') await api('/outbound/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'rejeitado' }) });
+      else if (act === 'enviar') {
+        const r = await api('/outbound/' + id + '/send', { method: 'POST' });
+        toast(r.dry_run ? 'Enviado (DRY-RUN: não saiu de verdade)' : 'E-mail enviado', 'success');
+      } else if (act === 'responder') {
+        await api('/outbound/' + id + '/reply', { method: 'POST' });
+        toast('Marcado como respondido', 'success');
+      }
+      if (act === 'aprovar' || act === 'rejeitar') toast('Atualizado', 'success');
+      loadOutboundQueue();
+    } catch (e) {
+      toast('Erro: ' + e.message, 'error');
+    }
   }
   document.getElementById('btn-gen-outbound').addEventListener('click', async () => {
     const id = document.getElementById('outbound-lead-select').value;

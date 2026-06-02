@@ -145,6 +145,12 @@ LEAD_MIGRATIONS = [
     ("sdr_status_at", "TEXT"),
 ]
 
+# Migrations idempotentes em outbound_messages (status: rascunho|aprovado|enviado|respondido|rejeitado|falhou)
+OUTBOUND_MIGRATIONS = [
+    ("erro", "TEXT"),
+    ("respondido_em", "TEXT"),
+]
+
 
 class Store:
     """Wrapper SQLite simples e direto."""
@@ -172,6 +178,10 @@ class Store:
             for col, ddl in LEAD_MIGRATIONS:
                 if col not in existing:
                     c.execute(f"ALTER TABLE leads ADD COLUMN {col} {ddl}")
+            existing_ob = {r["name"] for r in c.execute("PRAGMA table_info(outbound_messages)").fetchall()}
+            for col, ddl in OUTBOUND_MIGRATIONS:
+                if col not in existing_ob:
+                    c.execute(f"ALTER TABLE outbound_messages ADD COLUMN {col} {ddl}")
 
     # ====== Snapshots ======
 
@@ -266,7 +276,7 @@ class Store:
 
     def update_lead_fields(self, lead_id: int, fields: dict[str, Any]) -> bool:
         """Atualiza campos pontuais de um lead por id (whitelist)."""
-        allowed = {"pipeline_status"}
+        allowed = {"pipeline_status", "sdr_status", "sdr_status_at"}
         sets = {k: v for k, v in fields.items() if k in allowed}
         if not sets:
             return False
@@ -341,6 +351,63 @@ class Store:
             return [dict(r) for r in c.execute(
                 "SELECT * FROM outbound_messages WHERE lead_id=? ORDER BY canal", (lead_id,)
             ).fetchall()]
+
+    def outbound_message(self, msg_id: int) -> dict | None:
+        with self.conn() as c:
+            row = c.execute(
+                """SELECT m.*, l.empresa AS lead_empresa, l.email_provavel AS lead_email,
+                          l.email_validado AS lead_email_validado, l.decisor_nome AS lead_decisor
+                   FROM outbound_messages m LEFT JOIN leads l ON m.lead_id = l.id
+                   WHERE m.id = ?""",
+                (msg_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def outbound_sibling(self, lead_id: int, canal: str) -> dict | None:
+        """Outra mensagem do mesmo lead num canal específico (ex.: assunto do e-mail)."""
+        with self.conn() as c:
+            row = c.execute(
+                "SELECT * FROM outbound_messages WHERE lead_id=? AND canal=? ORDER BY id DESC LIMIT 1",
+                (lead_id, canal),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def all_outbound(self, status: str | None = None, limit: int = 200) -> list[dict]:
+        sql = [
+            """SELECT m.*, l.empresa AS lead_empresa, l.email_provavel AS lead_email,
+                      l.email_validado AS lead_email_validado
+               FROM outbound_messages m LEFT JOIN leads l ON m.lead_id = l.id WHERE 1=1"""
+        ]
+        params: list[Any] = []
+        if status:
+            sql.append(" AND m.status = ?")
+            params.append(status)
+        sql.append(" ORDER BY m.gerado_em DESC LIMIT ?")
+        params.append(limit)
+        with self.conn() as c:
+            return [dict(r) for r in c.execute("".join(sql), params).fetchall()]
+
+    def update_outbound_status(
+        self,
+        msg_id: int,
+        status: str,
+        *,
+        enviado_em: str | None = None,
+        respondido_em: str | None = None,
+        erro: str | None = None,
+    ) -> bool:
+        sets: dict[str, Any] = {"status": status, "erro": erro}
+        if enviado_em is not None:
+            sets["enviado_em"] = enviado_em
+        if respondido_em is not None:
+            sets["respondido_em"] = respondido_em
+        clause = ", ".join(f"{k}=?" for k in sets)
+        with self.conn() as c:
+            cur = c.execute(
+                f"UPDATE outbound_messages SET {clause} WHERE id=?",
+                (*sets.values(), msg_id),
+            )
+            return cur.rowcount > 0
 
     # ====== Events ======
 
