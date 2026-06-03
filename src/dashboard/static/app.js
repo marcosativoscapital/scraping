@@ -112,21 +112,32 @@
     set('ck-hoje', d.hoje); set('ck-atrasadas', d.atrasadas); set('ck-aguardando', d.aguardando_resposta);
     set('ck-taxa', (d.taxa_resposta || 0) + '%'); set('ck-quentes', d.quentes_a_contatar);
 
+    const gbar = document.getElementById('gauge-taxa-bar');
+    if (gbar) {
+      const C = 2 * Math.PI * 52;
+      const pct = Math.max(0, Math.min(100, Number(d.taxa_resposta) || 0));
+      gbar.style.strokeDasharray = C.toFixed(1);
+      gbar.style.strokeDashoffset = (C * (1 - pct / 100)).toFixed(1);
+    }
+
     const ql = document.getElementById('ck-quentes-list');
     if (ql) ql.innerHTML = (d.quentes_list || []).slice(0, 8).map((q) => `
       <div class="ck-row">
-        <div class="ck-row__main">
-          <span class="ck-row__name">${escapeHtml(q.empresa || '—')}</span>
-          <span class="ck-row__sub">${verticalLabel(q.vertical)} · ${escapeHtml(q.decisor_nome || 'sem decisor')}</span>
+        <div class="ck-row__left">
+          <span class="ck-row__ico ck-row__ico--hot"><svg width="16" height="16"><use href="#i-building"/></svg></span>
+          <div class="ck-row__main">
+            <span class="ck-row__name">${escapeHtml(q.empresa || '—')}</span>
+            <span class="ck-row__sub">${verticalLabel(q.vertical)} · ${escapeHtml(q.decisor_nome || 'sem decisor')}</span>
+          </div>
         </div>
         <span class="badge badge--success">${q.score_icp}</span>
       </div>`).join('') || '<div class="empty">Nada pendente por aqui.</div>';
 
     const ag = document.getElementById('ck-agenda');
     const items = [];
-    (d.atrasadas_list || []).slice(0, 4).forEach((a) => items.push(`<div class="ck-row"><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(a.titulo || '—')}</span><span class="ck-row__sub">${escapeHtml(a.cliente || '—')} · ${fmtDate(a.inicio_em)}</span></div><span class="badge badge--warning">atrasada</span></div>`));
-    (d.hoje_list || []).slice(0, 4).forEach((a) => items.push(`<div class="ck-row"><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(a.titulo || '—')}</span><span class="ck-row__sub">${escapeHtml(a.cliente || '—')} · ${fmtDate(a.inicio_em)}</span></div><span class="badge badge--brand">hoje</span></div>`));
-    (d.respostas_list || []).slice(0, 4).forEach((r) => items.push(`<div class="ck-row"><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(r.cliente || '—')}</span><span class="ck-row__sub">respondeu · ${escapeHtml(r.canal || '')}</span></div><span class="badge badge--success">resposta</span></div>`));
+    (d.atrasadas_list || []).slice(0, 4).forEach((a) => items.push(`<div class="ck-row"><div class="ck-row__left"><span class="ck-row__ico ck-row__ico--warn"><svg width="16" height="16"><use href="#i-flag"/></svg></span><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(a.titulo || '—')}</span><span class="ck-row__sub">${escapeHtml(a.cliente || '—')} · ${fmtDate(a.inicio_em)}</span></div></div><span class="badge badge--warning">atrasada</span></div>`));
+    (d.hoje_list || []).slice(0, 4).forEach((a) => items.push(`<div class="ck-row"><div class="ck-row__left"><span class="ck-row__ico ck-row__ico--hot"><svg width="16" height="16"><use href="#i-clock"/></svg></span><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(a.titulo || '—')}</span><span class="ck-row__sub">${escapeHtml(a.cliente || '—')} · ${fmtDate(a.inicio_em)}</span></div></div><span class="badge badge--brand">hoje</span></div>`));
+    (d.respostas_list || []).slice(0, 4).forEach((r) => items.push(`<div class="ck-row"><div class="ck-row__left"><span class="ck-row__ico ck-row__ico--ok"><svg width="16" height="16"><use href="#i-mail"/></svg></span><div class="ck-row__main"><span class="ck-row__name">${escapeHtml(r.cliente || '—')}</span><span class="ck-row__sub">respondeu · ${escapeHtml(r.canal || '')}</span></div></div><span class="badge badge--success">resposta</span></div>`));
     if (ag) ag.innerHTML = items.join('') || '<div class="empty">Sem pendências de agenda.</div>';
 
     const PIPE = [['potencial_cliente', 'Potencial cliente'], ['leads', 'Leads'], ['oportunidades', 'Oportunidades'], ['pos_venda', 'Pós-venda']];
@@ -136,7 +147,7 @@
 
     if (!_ckBound) {
       _ckBound = true;
-      document.querySelectorAll('.cockpit-kpi[data-go]').forEach((b) => b.addEventListener('click', () => {
+      document.querySelectorAll('#cockpit [data-go]').forEach((b) => b.addEventListener('click', () => {
         const t = document.querySelector(`.nav-item[data-tab="${b.dataset.go}"]`);
         if (t) t.click();
       }));
@@ -152,6 +163,17 @@
       document.getElementById('m-hot').textContent = hot.toLocaleString('pt-BR');
       document.getElementById('m-hot-pct').textContent = stats.total ? `${((hot / stats.total) * 100).toFixed(1)}% do total` : '—';
       document.getElementById('m-verticais').textContent = Object.keys(stats.por_vertical || {}).length;
+
+      // Hero "Quentes a contatar" — sub + mini-barras (tiers de score)
+      const heroSub = document.getElementById('hero-quentes-sub');
+      if (heroSub) heroSub.textContent = `Score ≥ 70 · de ${(stats.total || 0).toLocaleString('pt-BR')} no total`;
+      const spark = document.getElementById('hero-spark');
+      if (spark) {
+        const sb = stats.score_buckets || {};
+        const series = [sb.q0 || 0, sb.q40 || 0, sb.q60 || 0, sb.q80 || 0];
+        const mx = Math.max(1, ...series);
+        spark.innerHTML = series.map((v, i) => `<span class="hero-spark__bar${i === series.length - 1 ? ' is-peak' : ''}" style="height:${Math.max(10, (v / mx) * 100)}%"></span>`).join('');
+      }
 
       // Score buckets
       const total = stats.total || 1;
@@ -241,6 +263,18 @@
       `).join('') || '<tr><td colspan="8" class="empty">Nenhum lead encontrado.</td></tr>';
 
       document.getElementById('leads-count').textContent = `${rows.length} lead(s)`;
+
+      // KPI strip de Leads (computado do conjunto filtrado)
+      const setTxt = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      const n = rows.length;
+      const hot = rows.filter((l) => (l.score_icp ?? 0) >= 70).length;
+      const dec = rows.filter((l) => l.decisor_nome).length;
+      const mail = rows.filter((l) => l.email_provavel).length;
+      const pct = (x) => (n ? Math.round((x / n) * 100) + '% da lista' : '—');
+      setTxt('lk-total', n.toLocaleString('pt-BR'));
+      setTxt('lk-hot', hot.toLocaleString('pt-BR')); setTxt('lk-hot-foot', pct(hot));
+      setTxt('lk-dec', dec.toLocaleString('pt-BR')); setTxt('lk-dec-foot', pct(dec));
+      setTxt('lk-mail', mail.toLocaleString('pt-BR')); setTxt('lk-mail-foot', pct(mail));
 
       // Bind actions
       tbody.querySelectorAll('button[data-action]').forEach((b) => {
@@ -417,7 +451,19 @@
       <div class="ob-item__actions">${actions}</div>
     </div>`;
   }
+  async function loadOutboundKpis() {
+    try {
+      const data = await api('/outbound');
+      const msgs = (data.mensagens || []).filter((m) => m.canal !== 'email_subject');
+      const c = { rascunho: 0, aprovado: 0, enviado: 0, respondido: 0 };
+      msgs.forEach((m) => { if (c[m.status] != null) c[m.status]++; });
+      const setT = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      setT('ob-k-rascunho', c.rascunho); setT('ob-k-aprovado', c.aprovado);
+      setT('ob-k-enviado', c.enviado); setT('ob-k-respondido', c.respondido);
+    } catch (e) { /* silencioso */ }
+  }
   async function loadOutboundQueue() {
+    loadOutboundKpis();
     const root = document.getElementById('outbound-queue');
     if (!root) return;
     root.innerHTML = '<div class="ob-empty">Carregando…</div>';
@@ -1535,7 +1581,27 @@
     } catch (e) { /* mantém o mês atual */ }
   }
 
+  async function loadOppKpis() {
+    try {
+      const data = await api('/atividades?limit=500');
+      const ats = data.atividades || [];
+      const now = new Date();
+      let af = 0, ex = 0, atr = 0;
+      ats.forEach((a) => {
+        const s = a.status;
+        if (s === 'a_fazer' || s === 'reagendada') {
+          af++;
+          const d = new Date(a.inicio_em);
+          if (a.inicio_em && !isNaN(d) && d < now) atr++;
+        } else if (s === 'executada') { ex++; }
+      });
+      const setT = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      setT('opp-k-total', ats.length); setT('opp-k-afazer', af);
+      setT('opp-k-exec', ex); setT('opp-k-atras', atr);
+    } catch (e) { /* silencioso */ }
+  }
   async function loadOportunidades() {
+    loadOppKpis();
     if (!_oppBound) {
       _oppBound = true;
       document.getElementById('opp-views').addEventListener('click', (e) => {

@@ -137,8 +137,18 @@ class ScrapeRequest(BaseModel):
 
 
 # ====== DASHBOARD ======
+class NoCacheStaticFiles(StaticFiles):
+    """Estático sempre revalidado: o navegador checa o ETag antes de reusar o cache,
+    então nunca serve HTML/JS/CSS velho após um deploy (304 quando não mudou)."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
+
 if STATIC_DIR.exists():
-    app.mount("/dashboard", StaticFiles(directory=str(STATIC_DIR), html=True), name="dashboard")
+    app.mount("/dashboard", NoCacheStaticFiles(directory=str(STATIC_DIR), html=True), name="dashboard")
 
 
 @app.get("/")

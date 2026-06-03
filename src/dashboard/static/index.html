@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Solve Scraper · Solvefy CPaaS</title>
   <link rel="stylesheet" href="tokens.css" />
-  <link rel="stylesheet" href="app.css" />
-  <link rel="stylesheet" href="opportunities.css" />
+  <link rel="stylesheet" href="app.css?v=2" />
+  <link rel="stylesheet" href="opportunities.css?v=2" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -71,6 +71,8 @@
           <svg width="20" height="20"><use href="#i-zap"/></svg>
           <span>Overview</span>
         </button>
+
+        <p class="nav-section">Prospecção</p>
         <button class="nav-item" data-tab="leads">
           <svg width="20" height="20"><use href="#i-table"/></svg>
           <span>Leads</span>
@@ -79,6 +81,12 @@
           <svg width="20" height="20"><use href="#i-radar"/></svg>
           <span>Monitor</span>
         </button>
+        <button class="nav-item" data-tab="events">
+          <svg width="20" height="20"><use href="#i-bell"/></svg>
+          <span>Eventos</span>
+        </button>
+
+        <p class="nav-section">Vendas</p>
         <button class="nav-item" data-tab="outbound">
           <svg width="20" height="20"><use href="#i-send"/></svg>
           <span>Outbound</span>
@@ -95,11 +103,8 @@
           <svg width="20" height="20"><use href="#i-radar"/></svg>
           <span>Playbooks</span>
         </button>
-        <button class="nav-item" data-tab="events">
-          <svg width="20" height="20"><use href="#i-bell"/></svg>
-          <span>Eventos</span>
-        </button>
-        <button class="nav-item" data-tab="settings">
+
+        <button class="nav-item nav-item--pinned" data-tab="settings">
           <svg width="20" height="20"><use href="#i-cog"/></svg>
           <span>Configurações</span>
         </button>
@@ -147,12 +152,49 @@
               <h2>Meu dia</h2>
               <p class="card__sub">O que precisa da sua atenção agora.</p>
             </div>
-            <div class="cockpit__metrics">
-              <button class="cockpit-kpi" data-go="oportunidades"><span class="cockpit-kpi__v" id="ck-hoje">—</span><span class="cockpit-kpi__l">Atividades hoje</span></button>
-              <button class="cockpit-kpi cockpit-kpi--alert" data-go="oportunidades"><span class="cockpit-kpi__v" id="ck-atrasadas">—</span><span class="cockpit-kpi__l">Atrasadas</span></button>
-              <button class="cockpit-kpi" data-go="outbound"><span class="cockpit-kpi__v" id="ck-aguardando">—</span><span class="cockpit-kpi__l">Aguardando resposta</span></button>
-              <button class="cockpit-kpi" data-go="outbound"><span class="cockpit-kpi__v" id="ck-taxa">—</span><span class="cockpit-kpi__l">Taxa de resposta</span></button>
-              <button class="cockpit-kpi cockpit-kpi--hot" data-go="leads"><span class="cockpit-kpi__v" id="ck-quentes">—</span><span class="cockpit-kpi__l">Quentes a contatar</span></button>
+            <div class="bento">
+              <button class="hero-card" data-go="leads" aria-label="Abrir leads quentes">
+                <div class="hero-card__top">
+                  <span class="hero-card__tag">Prioridade do dia</span>
+                  <span class="hero-card__mark"><svg width="22" height="22"><use href="#i-target"/></svg></span>
+                </div>
+                <span class="hero-card__label">Quentes a contatar</span>
+                <span class="hero-card__value" id="ck-quentes">—</span>
+                <div class="hero-card__foot">
+                  <span id="hero-quentes-sub">Score ≥ 70 ainda sem contato</span>
+                  <span class="hero-card__cta">Abrir leads <svg width="15" height="15"><use href="#i-chev-right"/></svg></span>
+                </div>
+                <div class="hero-spark" id="hero-spark" aria-hidden="true"></div>
+              </button>
+
+              <div class="gauge-card">
+                <span class="gauge-card__label">Taxa de resposta</span>
+                <div class="gauge">
+                  <svg class="gauge__svg" viewBox="0 0 120 120" width="132" height="132" aria-hidden="true">
+                    <circle class="gauge__track" cx="60" cy="60" r="52" stroke-width="12" fill="none"/>
+                    <circle class="gauge__bar" id="gauge-taxa-bar" cx="60" cy="60" r="52" stroke-width="12" fill="none" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+                  </svg>
+                  <div class="gauge__center">
+                    <span class="gauge__value" id="ck-taxa">—</span>
+                    <span class="gauge__sub">de quem recebeu</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mini-kpis">
+                <button class="mini-kpi" data-go="oportunidades">
+                  <span class="mini-kpi__icon"><svg width="18" height="18"><use href="#i-clock"/></svg></span>
+                  <span class="mini-kpi__body"><span class="mini-kpi__v" id="ck-hoje">—</span><span class="mini-kpi__l">Atividades hoje</span></span>
+                </button>
+                <button class="mini-kpi mini-kpi--alert" data-go="oportunidades">
+                  <span class="mini-kpi__icon"><svg width="18" height="18"><use href="#i-flag"/></svg></span>
+                  <span class="mini-kpi__body"><span class="mini-kpi__v" id="ck-atrasadas">—</span><span class="mini-kpi__l">Atrasadas</span></span>
+                </button>
+                <button class="mini-kpi" data-go="outbound">
+                  <span class="mini-kpi__icon"><svg width="18" height="18"><use href="#i-mail"/></svg></span>
+                  <span class="mini-kpi__body"><span class="mini-kpi__v" id="ck-aguardando">—</span><span class="mini-kpi__l">Aguardando resposta</span></span>
+                </button>
+              </div>
             </div>
             <div class="grid-2">
               <div class="card">
@@ -256,6 +298,12 @@
 
         <!-- ============== LEADS ============== -->
         <section class="tab-panel" data-panel="leads">
+          <div class="kpi-strip" id="leads-kpis">
+            <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-table"/></svg></span>Leads na lista</p><span class="kpi__value" id="lk-total">—</span><p class="kpi__foot" id="lk-total-foot">no filtro atual</p></div>
+            <div class="kpi"><p class="kpi__label"><span class="kpi__chip kpi__chip--ok"><svg><use href="#i-star"/></svg></span>Score ≥ 70</p><span class="kpi__value" id="lk-hot">—</span><p class="kpi__foot" id="lk-hot-foot">—</p></div>
+            <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-user"/></svg></span>Com decisor</p><span class="kpi__value" id="lk-dec">—</span><p class="kpi__foot" id="lk-dec-foot">—</p></div>
+            <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-mail"/></svg></span>Com e-mail</p><span class="kpi__value" id="lk-mail">—</span><p class="kpi__foot" id="lk-mail-foot">—</p></div>
+          </div>
           <div class="filters">
             <div class="filter-group">
               <label class="filter-label">Vertical</label>
@@ -349,6 +397,12 @@
             <div class="card__head">
               <h2>Fila de envio</h2>
               <p class="card__sub">Aprove, envie (e-mail via SMTP) e acompanhe o status de cada mensagem.</p>
+            </div>
+            <div class="kpi-strip" id="outbound-kpis">
+              <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-clock"/></svg></span>Rascunhos</p><span class="kpi__value" id="ob-k-rascunho">—</span><p class="kpi__foot">aguardando aprovação</p></div>
+              <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-check"/></svg></span>Aprovados</p><span class="kpi__value" id="ob-k-aprovado">—</span><p class="kpi__foot">prontos p/ enviar</p></div>
+              <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-send"/></svg></span>Enviados</p><span class="kpi__value" id="ob-k-enviado">—</span><p class="kpi__foot">no ar</p></div>
+              <div class="kpi"><p class="kpi__label"><span class="kpi__chip kpi__chip--ok"><svg><use href="#i-mail"/></svg></span>Respondidos</p><span class="kpi__value" id="ob-k-respondido">—</span><p class="kpi__foot">retornaram</p></div>
             </div>
             <div class="ob-filters" id="ob-filters">
               <button class="ob-chip is-active" data-obf="">Todos</button>
@@ -490,6 +544,13 @@
               <h2>Atividades</h2>
             </div>
 
+            <div class="kpi-strip" id="opp-kpis">
+              <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-target"/></svg></span>Atividades</p><span class="kpi__value" id="opp-k-total">—</span><p class="kpi__foot">no total</p></div>
+              <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-clock"/></svg></span>A fazer</p><span class="kpi__value" id="opp-k-afazer">—</span><p class="kpi__foot">pendentes</p></div>
+              <div class="kpi"><p class="kpi__label"><span class="kpi__chip kpi__chip--warn"><svg><use href="#i-flag"/></svg></span>Atrasadas</p><span class="kpi__value" id="opp-k-atras">—</span><p class="kpi__foot">passou da data</p></div>
+              <div class="kpi"><p class="kpi__label"><span class="kpi__chip kpi__chip--ok"><svg><use href="#i-check"/></svg></span>Executadas</p><span class="kpi__value" id="opp-k-exec">—</span><p class="kpi__foot">concluídas</p></div>
+            </div>
+
             <div class="opp__viewbar">
               <div class="opp__views" role="tablist" id="opp-views">
                 <button class="opp-view is-active" data-view="lista" role="tab">Lista</button>
@@ -570,6 +631,6 @@
   <!-- Toast -->
   <div class="toast-wrap" id="toast-wrap"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
