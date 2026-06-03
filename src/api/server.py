@@ -560,6 +560,51 @@ def outbound_reply(msg_id: int, x_api_token: str | None = Header(default=None)):
     return {"ok": True, "mensagem": STORE.outbound_message(msg_id)}
 
 
+def _lead_payload(row_payload) -> dict:
+    import json as _json
+    if not row_payload:
+        return {}
+    return _json.loads(row_payload) if isinstance(row_payload, str) else (row_payload or {})
+
+
+@app.post("/outbound/journey/{lead_id:int}")
+def outbound_journey_generate(lead_id: int, x_api_token: str | None = Header(default=None)):
+    """Gera (via Gemini) a jornada de contato ideal do lead e salva em payload_json."""
+    _auth(x_api_token)
+    import json as _json
+    with STORE.conn() as c:
+        row = c.execute("SELECT * FROM leads WHERE id=?", (lead_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Lead não encontrado")
+    lead = dict(row)
+    try:
+        from ..claude_agent.journey import generate_journey
+        journey = generate_journey(GeminiClient(), lead)
+    except Exception as e:
+        logger.exception("Geração de jornada falhou: %s", e)
+        raise HTTPException(500, str(e))
+    with STORE.conn() as c:
+        pd = _lead_payload(lead.get("payload_json"))
+        pd["journey"] = journey
+        c.execute(
+            "UPDATE leads SET payload_json=? WHERE id=?",
+            (_json.dumps(pd, ensure_ascii=False, default=str), lead_id),
+        )
+    STORE.log_event("journey_generated", {"lead_id": lead_id, "empresa": lead.get("empresa")})
+    return {"ok": True, "lead_id": lead_id, "empresa": lead.get("empresa"), "journey": journey}
+
+
+@app.get("/outbound/journey/{lead_id:int}")
+def outbound_journey_get(lead_id: int, x_api_token: str | None = Header(default=None)):
+    """Retorna a jornada já gerada (ou null)."""
+    _auth(x_api_token)
+    with STORE.conn() as c:
+        row = c.execute("SELECT payload_json FROM leads WHERE id=?", (lead_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Lead não encontrado")
+    return {"lead_id": lead_id, "journey": _lead_payload(row["payload_json"]).get("journey")}
+
+
 @app.post("/webhook/outbound/reply")
 def outbound_webhook_reply(payload: ReplyPayload, x_api_token: str | None = Header(default=None)):
     """Webhook para CPaaS/parser futuro marcar resposta por msg_id ou lead_id."""

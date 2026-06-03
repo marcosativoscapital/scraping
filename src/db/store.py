@@ -495,7 +495,9 @@ class Store:
     def all_outbound(self, status: str | None = None, limit: int = 200) -> list[dict]:
         sql = [
             """SELECT m.*, l.empresa AS lead_empresa, l.email_provavel AS lead_email,
-                      l.email_validado AS lead_email_validado
+                      l.email_validado AS lead_email_validado, l.vertical AS vertical,
+                      l.score_icp AS score_icp, l.decisor_nome AS decisor_nome,
+                      l.decisor_cargo AS decisor_cargo
                FROM outbound_messages m LEFT JOIN leads l ON m.lead_id = l.id WHERE 1=1"""
         ]
         params: list[Any] = []

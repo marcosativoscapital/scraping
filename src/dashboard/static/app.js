@@ -462,6 +462,14 @@
       setT('ob-k-enviado', c.enviado); setT('ob-k-respondido', c.respondido);
     } catch (e) { /* silencioso */ }
   }
+  const OB_CHAN_ORDER = ['email_body', 'sms', 'linkedin_connection', 'linkedin_followup'];
+  function initials(name) {
+    return ((name || '—').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('') || '—').toUpperCase();
+  }
+  function canalLabel(c) {
+    return ({ linkedin: 'LinkedIn', email: 'E-mail', 'e-mail': 'E-mail', whatsapp: 'WhatsApp',
+      sms: 'SMS', ligacao: 'Ligação', 'ligação': 'Ligação', rcs: 'RCS', voz: 'Voz', call: 'Ligação' }[(c || '').toLowerCase()] || c || '—');
+  }
   async function loadOutboundQueue() {
     loadOutboundKpis();
     const root = document.getElementById('outbound-queue');
@@ -470,15 +478,124 @@
     try {
       const data = await api('/outbound' + (_obFilter ? '?status=' + _obFilter : ''));
       const msgs = data.mensagens || [];
-      const subj = {};
-      msgs.forEach((m) => { if (m.canal === 'email_subject') subj[m.lead_id] = m.mensagem; });
-      const items = msgs.filter((m) => m.canal !== 'email_subject'); // colapsa o assunto no e-mail
-      if (!items.length) { root.innerHTML = '<div class="ob-empty">Nada na fila.</div>'; return; }
-      root.innerHTML = items.map((m) => obItem(m, subj[m.lead_id])).join('');
+      if (!msgs.length) { root.innerHTML = '<div class="ob-empty">Nada na fila.</div>'; return; }
+      // agrupa por empresa (lead_id), com canais dentro
+      const byLead = {};
+      msgs.forEach((m) => {
+        const co = (byLead[m.lead_id] = byLead[m.lead_id] || {
+          lead_id: m.lead_id, empresa: m.lead_empresa, email: m.lead_email, vertical: m.vertical,
+          score: m.score_icp, decisor_nome: m.decisor_nome, decisor_cargo: m.decisor_cargo, subj: null, canais: {},
+        });
+        if (m.canal === 'email_subject') { co.subj = m.mensagem; return; }
+        (co.canais[m.canal] = co.canais[m.canal] || []).push(m);
+      });
+      const companies = Object.values(byLead);
+      root.innerHTML = companies.map(obCompanyCard).join('');
       root.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => obAction(b.dataset.act, b.dataset.id)));
+      root.querySelectorAll('[data-journey]').forEach((b) => b.addEventListener('click', () => genJourney(b.dataset.journey)));
+      companies.forEach((co) => loadJourneyInto(co.lead_id)); // hidrata jornadas já geradas
     } catch (e) {
       root.innerHTML = `<div class="ob-empty">Erro: ${escapeHtml(e.message)}</div>`;
     }
+  }
+
+  function obCompanyCard(co) {
+    const channelsHtml = OB_CHAN_ORDER.filter((ch) => co.canais[ch])
+      .map((ch) => co.canais[ch].map((m) => obChannelBlock(m, ch === 'email_body' ? co.subj : null)).join('')).join('')
+      || '<div class="ob-empty" style="padding:12px 0">Sem mensagens.</div>';
+    const dec = co.decisor_nome
+      ? `${escapeHtml(co.decisor_nome)}${co.decisor_cargo ? ' · ' + escapeHtml(co.decisor_cargo) : ''}`
+      : 'decisor não enriquecido';
+    return `<div class="ob-co" data-co="${co.lead_id}">
+      <div class="ob-co__head">
+        <div class="ob-co__id">
+          <span class="ob-co__avatar">${escapeHtml(initials(co.empresa))}</span>
+          <div class="ob-co__meta">
+            <div class="ob-co__name">${escapeHtml(co.empresa || '—')}</div>
+            <div class="ob-co__sub">${co.vertical ? escapeHtml(verticalLabel(co.vertical)) + ' · ' : ''}${dec}</div>
+          </div>
+        </div>
+        ${co.score != null ? `<span class="${scoreClass(co.score)}">${co.score}</span>` : ''}
+      </div>
+      <div class="ob-journey">
+        <div class="ob-journey__head">
+          <span class="ob-journey__title">Jornada de contato ideal</span>
+          <button class="btn btn--secondary btn--sm" data-journey="${co.lead_id}">Gerar jornada</button>
+        </div>
+        <div class="ob-journey__body" id="journey-body-${co.lead_id}">
+          <div class="ob-journey__hint">A IA monta como falar, os canais e o passo a passo desta empresa.</div>
+        </div>
+      </div>
+      <div class="ob-channels">${channelsHtml}</div>
+    </div>`;
+  }
+
+  function obChannelBlock(m, subject) {
+    const badgeCls = OB_STATUS[m.status] || 'badge';
+    const isEmail = m.canal === 'email_body';
+    const label = OB_CHAN[m.canal] || m.canal;
+    let actions = '';
+    if (m.status === 'rascunho') actions = obBtn('aprovar', m.id, 'Aprovar', 'primary') + obBtn('rejeitar', m.id, 'Rejeitar', 'secondary');
+    else if (m.status === 'aprovado') actions = obBtn('enviar', m.id, 'Enviar', 'primary') + obBtn('rejeitar', m.id, 'Rejeitar', 'secondary');
+    else if (m.status === 'enviado') actions = obBtn('responder', m.id, 'Marcar respondido', 'secondary');
+    else if (m.status === 'falhou') actions = obBtn('aprovar', m.id, 'Tentar de novo', 'secondary');
+    return `<div class="ob-chan-block">
+      <div class="ob-chan-block__top"><span class="ob-chan">${label}</span><span class="${badgeCls}">${m.status}</span></div>
+      ${isEmail && subject ? `<div class="ob-item__subject">Assunto: ${escapeHtml(subject)}</div>` : ''}
+      <div class="ob-item__body">${escapeHtml(m.mensagem || '')}</div>
+      ${m.erro ? `<div class="ob-item__erro">Erro: ${escapeHtml(m.erro)}</div>` : ''}
+      <div class="ob-item__actions">${actions}</div>
+    </div>`;
+  }
+
+  async function genJourney(leadId) {
+    const body = document.getElementById('journey-body-' + leadId);
+    const btn = document.querySelector(`[data-journey="${leadId}"]`);
+    if (body) body.innerHTML = '<div class="ob-journey__hint">Gerando jornada com IA…</div>';
+    if (btn) { btn.disabled = true; btn.textContent = 'Gerando…'; }
+    try {
+      const r = await api('/outbound/journey/' + leadId, { method: 'POST' });
+      renderJourney(leadId, r.journey);
+      toast('Jornada gerada', 'success');
+    } catch (e) {
+      if (body) body.innerHTML = `<div class="ob-item__erro">Erro: ${escapeHtml(e.message)}</div>`;
+      toast('Erro ao gerar jornada: ' + e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Gerar jornada'; }
+    }
+  }
+  async function loadJourneyInto(leadId) {
+    try {
+      const r = await api('/outbound/journey/' + leadId);
+      if (r && r.journey) renderJourney(leadId, r.journey);
+    } catch (e) { /* silencioso */ }
+  }
+  function renderJourney(leadId, j) {
+    const body = document.getElementById('journey-body-' + leadId);
+    if (!body || !j) return;
+    const cf = j.como_falar || {};
+    const canais = (j.canais || []).map((c, i) => `<span class="jr-chan">${i + 1}. ${escapeHtml(canalLabel(c))}</span>`).join('');
+    const passos = (j.passos || []).map((p) => `
+      <div class="jr-step">
+        <span class="jr-step__dia">${escapeHtml(p.dia || '')}</span>
+        <div class="jr-step__main">
+          <div class="jr-step__head"><span class="jr-step__chan">${escapeHtml(canalLabel(p.canal))}</span>${p.objetivo ? `<span class="jr-step__obj">${escapeHtml(p.objetivo)}</span>` : ''}</div>
+          ${p.acao ? `<div class="jr-step__acao">${escapeHtml(p.acao)}</div>` : ''}
+          ${p.exemplo ? `<div class="jr-step__ex">“${escapeHtml(p.exemplo)}”</div>` : ''}
+        </div>
+      </div>`).join('');
+    const linha = (lbl, v) => (v ? `<div class="jr-line"><strong>${lbl}:</strong> ${escapeHtml(v)}</div>` : '');
+    body.innerHTML = `
+      ${j.resumo ? `<div class="jr-resumo">${escapeHtml(j.resumo)}</div>` : ''}
+      <div class="jr-falar">
+        ${cf.persona ? `<span class="jr-tag">Persona: ${escapeHtml(cf.persona)}</span>` : ''}
+        ${linha('Tom', cf.tom)}${linha('Ângulo', cf.angulo)}${linha('Gatilho', cf.gatilho)}
+        ${cf.evitar ? `<div class="jr-line jr-evitar"><strong>Evitar:</strong> ${escapeHtml(cf.evitar)}</div>` : ''}
+      </div>
+      ${canais ? `<div class="jr-canais"><span class="jr-canais__label">Ordem dos canais</span>${canais}</div>` : ''}
+      <div class="jr-steps">${passos}</div>
+      ${j.objecao_provavel ? `<div class="jr-obj"><strong>Objeção provável:</strong> ${escapeHtml(j.objecao_provavel)}${j.resposta_objecao ? `<br><strong>Resposta:</strong> ${escapeHtml(j.resposta_objecao)}` : ''}</div>` : ''}`;
+    const btn = document.querySelector(`[data-journey="${leadId}"]`);
+    if (btn) { btn.disabled = false; btn.textContent = 'Regenerar'; }
   }
   async function obAction(act, id) {
     try {
