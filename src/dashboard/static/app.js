@@ -112,12 +112,10 @@
     set('ck-hoje', d.hoje); set('ck-atrasadas', d.atrasadas); set('ck-aguardando', d.aguardando_resposta);
     set('ck-taxa', (d.taxa_resposta || 0) + '%'); set('ck-quentes', d.quentes_a_contatar);
 
-    const gbar = document.getElementById('gauge-taxa-bar');
-    if (gbar) {
-      const C = 2 * Math.PI * 52;
+    const mark = document.getElementById('taxa-marker');
+    if (mark) {
       const pct = Math.max(0, Math.min(100, Number(d.taxa_resposta) || 0));
-      gbar.style.strokeDasharray = C.toFixed(1);
-      gbar.style.strokeDashoffset = (C * (1 - pct / 100)).toFixed(1);
+      mark.style.left = pct + '%';
     }
 
     const ql = document.getElementById('ck-quentes-list');
@@ -275,6 +273,8 @@
       setTxt('lk-hot', hot.toLocaleString('pt-BR')); setTxt('lk-hot-foot', pct(hot));
       setTxt('lk-dec', dec.toLocaleString('pt-BR')); setTxt('lk-dec-foot', pct(dec));
       setTxt('lk-mail', mail.toLocaleString('pt-BR')); setTxt('lk-mail-foot', pct(mail));
+      const upd = document.getElementById('leads-updated');
+      if (upd) upd.textContent = 'Atualizado · ' + new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
       // Bind actions
       tbody.querySelectorAll('button[data-action]').forEach((b) => {

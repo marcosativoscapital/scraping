@@ -77,10 +77,6 @@
           <svg width="20" height="20"><use href="#i-table"/></svg>
           <span>Leads</span>
         </button>
-        <button class="nav-item" data-tab="monitor">
-          <svg width="20" height="20"><use href="#i-radar"/></svg>
-          <span>Monitor</span>
-        </button>
         <button class="nav-item" data-tab="events">
           <svg width="20" height="20"><use href="#i-bell"/></svg>
           <span>Eventos</span>
@@ -132,14 +128,6 @@
             </button>
             <div class="reminders__panel" id="reminders-panel" hidden></div>
           </div>
-          <button class="btn btn--secondary" id="btn-refresh">
-            <svg width="18" height="18"><use href="#i-zap"/></svg>
-            Atualizar
-          </button>
-          <button class="btn btn--primary" id="btn-scrape">
-            <svg width="18" height="18"><use href="#i-play"/></svg>
-            Disparar coleta
-          </button>
         </div>
       </header>
 
@@ -167,17 +155,14 @@
                 <div class="hero-spark" id="hero-spark" aria-hidden="true"></div>
               </button>
 
-              <div class="gauge-card">
-                <span class="gauge-card__label">Taxa de resposta</span>
-                <div class="gauge">
-                  <svg class="gauge__svg" viewBox="0 0 120 120" width="132" height="132" aria-hidden="true">
-                    <circle class="gauge__track" cx="60" cy="60" r="52" stroke-width="12" fill="none"/>
-                    <circle class="gauge__bar" id="gauge-taxa-bar" cx="60" cy="60" r="52" stroke-width="12" fill="none" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
-                  </svg>
-                  <div class="gauge__center">
-                    <span class="gauge__value" id="ck-taxa">—</span>
-                    <span class="gauge__sub">de quem recebeu</span>
-                  </div>
+              <div class="score-card">
+                <div class="score-card__head">
+                  <span class="score-card__label">Taxa de resposta</span>
+                </div>
+                <div class="score-card__stage">
+                  <span class="score-card__ticks" aria-hidden="true"></span>
+                  <span class="score-card__value" id="ck-taxa">—</span>
+                  <div class="score-card__track"><span class="score-card__marker" id="taxa-marker"></span></div>
                 </div>
               </div>
 
@@ -298,6 +283,29 @@
 
         <!-- ============== LEADS ============== -->
         <section class="tab-panel" data-panel="leads">
+          <div class="monitor-strip">
+            <div class="monitor-strip__title">
+              <strong>Detector de mudanças</strong>
+              <span>Roda a coleta atual e compara com o último snapshot da vertical.</span>
+            </div>
+            <div class="monitor-strip__actions">
+              <span class="monitor-strip__updated" id="leads-updated">—</span>
+              <button class="chip-btn" data-monitor="betting">Verificar bets</button>
+              <button class="chip-btn" data-monitor="pagamentos">IPs (Bacen)</button>
+              <button class="chip-btn" data-monitor="cobranca">Cobrança</button>
+              <button class="chip-btn" data-monitor="saas_b2b">SaaS</button>
+              <span class="monitor-strip__sep" aria-hidden="true"></span>
+              <button class="btn btn--secondary" id="btn-refresh">
+                <svg width="18" height="18"><use href="#i-zap"/></svg>
+                Atualizar
+              </button>
+              <button class="btn btn--primary" id="btn-scrape">
+                <svg width="18" height="18"><use href="#i-play"/></svg>
+                Disparar coleta
+              </button>
+            </div>
+          </div>
+          <div id="monitor-result" class="monitor-result"></div>
           <div class="kpi-strip" id="leads-kpis">
             <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-table"/></svg></span>Leads na lista</p><span class="kpi__value" id="lk-total">—</span><p class="kpi__foot" id="lk-total-foot">no filtro atual</p></div>
             <div class="kpi"><p class="kpi__label"><span class="kpi__chip kpi__chip--ok"><svg><use href="#i-star"/></svg></span>Score ≥ 70</p><span class="kpi__value" id="lk-hot">—</span><p class="kpi__foot" id="lk-hot-foot">—</p></div>
@@ -358,22 +366,7 @@
           </div>
         </section>
 
-        <!-- ============== MONITOR ============== -->
-        <section class="tab-panel" data-panel="monitor">
-          <div class="card">
-            <div class="card__head">
-              <h2>Detector de mudanças</h2>
-              <p class="card__sub">Roda a coleta atual e compara com o último snapshot da vertical.</p>
-            </div>
-            <div class="monitor-actions">
-              <button class="chip-btn" data-monitor="betting">Verificar bets (SPA/MF)</button>
-              <button class="chip-btn" data-monitor="pagamentos">Verificar IPs (Bacen)</button>
-              <button class="chip-btn" data-monitor="cobranca">Verificar cobrança</button>
-              <button class="chip-btn" data-monitor="saas_b2b">Verificar SaaS</button>
-            </div>
-            <div id="monitor-result" class="monitor-result"></div>
-          </div>
-        </section>
+        <!-- (Monitor "Detector de mudanças" movido para a aba Leads) -->
 
         <!-- ============== OUTBOUND ============== -->
         <section class="tab-panel" data-panel="outbound">
@@ -539,11 +532,6 @@
         <!-- ============== OPORTUNIDADES ============== -->
         <section class="tab-panel" data-panel="oportunidades">
           <div class="opp">
-            <div class="opp__banner">
-              <svg width="22" height="22"><use href="#i-target"/></svg>
-              <h2>Atividades</h2>
-            </div>
-
             <div class="kpi-strip" id="opp-kpis">
               <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-target"/></svg></span>Atividades</p><span class="kpi__value" id="opp-k-total">—</span><p class="kpi__foot">no total</p></div>
               <div class="kpi"><p class="kpi__label"><span class="kpi__chip"><svg><use href="#i-clock"/></svg></span>A fazer</p><span class="kpi__value" id="opp-k-afazer">—</span><p class="kpi__foot">pendentes</p></div>
