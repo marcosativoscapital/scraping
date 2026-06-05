@@ -178,9 +178,22 @@
       const spark = document.getElementById('hero-spark');
       if (spark) {
         const sb = stats.score_buckets || {};
-        const series = [sb.q0 || 0, sb.q40 || 0, sb.q60 || 0, sb.q80 || 0];
-        const mx = Math.max(1, ...series);
-        spark.innerHTML = series.map((v, i) => `<span class="hero-spark__bar${i === series.length - 1 ? ' is-peak' : ''}" style="height:${Math.max(10, (v / mx) * 100)}%"></span>`).join('');
+        const tiers = [
+          { key: 'q0', faixa: '0–39' },
+          { key: 'q40', faixa: '40–59' },
+          { key: 'q60', faixa: '60–79' },
+          { key: 'q80', faixa: '80+' },
+        ];
+        const mx = Math.max(1, ...tiers.map((t) => sb[t.key] || 0));
+        spark.innerHTML = tiers.map((t, i) => {
+          const v = sb[t.key] || 0;
+          const peak = i === tiers.length - 1;
+          return `<div class="hero-spark__col${peak ? ' is-peak' : ''}" title="Score ${t.faixa} · ${v} leads">
+            <span class="hero-spark__num">${v.toLocaleString('pt-BR')}</span>
+            <span class="hero-spark__track"><span class="hero-spark__bar" style="height:${Math.max(8, (v / mx) * 100)}%"></span></span>
+            <span class="hero-spark__cap">${t.faixa}</span>
+          </div>`;
+        }).join('');
       }
 
       // Score buckets
