@@ -42,7 +42,12 @@ from ..playbooks.selector import select_playbooks_for_lead
 from ..scrapers.linkedin import parse_linkedin_payload
 from ..sdr.queue import SDRQueue
 from ..claude_agent.client import GeminiClient
-from ..enrichers.web_enricher import enrich_and_save, enrich_top_n, find_and_save_decisores
+from ..enrichers.web_enricher import (
+    discover_leads_via_icp,
+    enrich_and_save,
+    enrich_top_n,
+    find_and_save_decisores,
+)
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -1033,6 +1038,34 @@ def enrich_lead_decisores(lead_id: int, x_api_token: Optional[str] = Header(defa
     except Exception as e:  # noqa: BLE001
         logger.exception("Busca de decisores falhou (lead %s)", lead_id)
         raise HTTPException(500, f"Falha ao buscar decisores: {e}")
+
+
+class DiscoverRequest(BaseModel):
+    vertical: Optional[str] = None
+    limit: int = 8
+
+
+@app.post("/leads/discover")
+def leads_discover(
+    req: DiscoverRequest,
+    x_api_token: Optional[str] = Header(default=None),
+    x_workspace_id: Optional[str] = Header(default=None),
+):
+    """Descobre leads reais (Gemini + Google Search) que batem com o ICP do workspace atual."""
+    _auth(x_api_token)
+    try:
+        ws_id = int(x_workspace_id) if x_workspace_id is not None else 1
+    except (ValueError, TypeError):
+        ws_id = 1
+    ws = CONTROL.get_workspace(ws_id)
+    if not ws:
+        raise HTTPException(404, "Workspace não encontrado")
+    limit = max(1, min(int(req.limit or 8), 15))
+    try:
+        return discover_leads_via_icp(CONTROL.get_data_store(ws_id), ws, vertical_label=req.vertical, limit=limit)
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Descoberta de leads falhou (ws %s)", ws_id)
+        raise HTTPException(500, f"Falha na descoberta: {e}")
 
 
 # ====== ATIVIDADES (vendas / oportunidades) ======

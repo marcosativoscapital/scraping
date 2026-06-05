@@ -597,6 +597,27 @@
     }
   }
 
+  async function runDiscovery(verticalLabel, btn) {
+    const lbl = verticalLabel || 'o ICP do workspace';
+    if (!confirm(`Buscar leads reais para "${lbl}" usando IA (Gemini + Busca)?\n\nÉ uma chamada paga e pode levar ~30s.`)) return;
+    const result = document.getElementById('monitor-result');
+    if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
+    if (result) result.innerHTML = '<div class="empty">Descobrindo empresas que batem com o ICP… pode levar ~30s.</div>';
+    try {
+      const data = await api('/leads/discover', { method: 'POST', body: JSON.stringify({ vertical: verticalLabel || null, limit: 8 }) });
+      const n = data.n || 0;
+      const items = (data.leads || []).slice(0, 20).map((l) => `<li>${escapeHtml(l.empresa || '?')}${l.score_icp != null ? ` · score ${l.score_icp}` : ''}</li>`).join('');
+      if (result) result.innerHTML = `<div class="monitor-block monitor-block--success"><div class="monitor-block__title">🔎 ${n} lead(s) descoberto(s)${verticalLabel ? ` · ${escapeHtml(verticalLabel)}` : ''}</div>${n ? `<ul>${items}</ul>` : 'Nenhuma empresa nova encontrada.'}</div>`;
+      toast(n ? `${n} leads descobertos` : 'Nenhum lead novo encontrado', n ? 'success' : 'info');
+      loadLeads();
+    } catch (e) {
+      if (result) result.innerHTML = `<div class="monitor-block monitor-block--warning">Erro: ${escapeHtml(e.message)}</div>`;
+      toast('Erro: ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
+    }
+  }
+
   const CPAAS_MONITORS = [['betting', 'Verificar bets'], ['pagamentos', 'IPs (Bacen)'], ['cobranca', 'Cobrança'], ['saas_b2b', 'SaaS']];
   function renderMonitorChips() {
     const cont = document.getElementById('monitor-chips');
@@ -618,7 +639,7 @@
       const fb = e.target.closest('[data-monitor]');
       if (fb) return runMonitor(fb.dataset.monitor, fb);
       const vb = e.target.closest('[data-monitor-vertical]');
-      if (vb) toast(`Coleta sob medida para "${vb.dataset.monitorVertical}" — em breve neste workspace.`);
+      if (vb) return runDiscovery(vb.dataset.monitorVertical, vb);
     });
     renderMonitorChips();
   })();
@@ -1021,6 +1042,10 @@
     toast('Atualizado');
   });
   document.getElementById('btn-scrape').addEventListener('click', async () => {
+    const isCpaas = String(localStorage.getItem('workspaceId') || '1') === '1';
+    if (!isCpaas) {
+      return runDiscovery((_wsVerticais && _wsVerticais[0]) || null, document.getElementById('btn-scrape'));
+    }
     const html = `
       <div class="settings-grid">
         <div class="setting-row">

@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import time
+from datetime import datetime
 from typing import Any
 
 from google import genai
@@ -178,6 +179,153 @@ def find_and_save_decisores(lead_id: int, store: "Store | None" = None, limit: i
             )
         store.log_event("decisores_busca", {"lead_id": lead_id, "n": len(decisores)})
     return res
+
+
+SYSTEM_DISCOVERY = """Você é um pesquisador de mercado B2B brasileiro.
+Use Google Search para encontrar EMPRESAS REAIS que se encaixam no ICP informado.
+Para cada empresa traga: nome oficial, site, segmento, porte estimado, uma nota de aderência ao ICP
+(score_icp de 0 a 100), uma recomendação e um gatilho de abordagem curto.
+NUNCA invente empresas nem sites — use apenas as que conseguir confirmar na busca. Português brasileiro."""
+
+
+def _slug_simple(s: str) -> str:
+    s = (s or "").strip().lower()
+    for a, b in (("áàâã", "a"), ("éê", "e"), ("íî", "i"), ("óôõ", "o"), ("úû", "u"), ("ç", "c")):
+        for ch in a:
+            s = s.replace(ch, b)
+    s = re.sub(r"[^a-z0-9]+", "_", s).strip("_")
+    return s[:40] or "icp"
+
+
+def discover_leads_via_icp(store, workspace: dict, vertical_label: str | None = None, limit: int = 8) -> dict[str, Any]:
+    """Descobre empresas reais que batem com o ICP do workspace (Gemini + Google Search)."""
+    produto = workspace.get("produto") or ""
+    descricao = workspace.get("descricao") or ""
+    icp = workspace.get("icp") or ""
+    try:
+        anamnese = json.loads(workspace.get("anamnese_json") or "{}")
+    except Exception:
+        anamnese = {}
+    icp_estrut = anamnese.get("icp_estruturado") or {}
+    palavras = anamnese.get("palavras_chave") or []
+    verticais = anamnese.get("verticais_sugeridas") or []
+    alvo = vertical_label or (verticais[0] if verticais else "") or icp or produto
+
+    schema = """{
+  "empresas": [
+    {"empresa": "Nome Oficial", "site": "https://... ou null", "cnpj": "se souber ou null",
+     "segmento": "...", "porte_estimado": "pequeno|medio|grande",
+     "score_icp": 0-100, "recomendacao": "ativar_outbound|nutrir|descartar",
+     "gatilho_personalizado": "1 frase de abordagem", "motivo_fit": "por que se encaixa"}
+  ]
+}"""
+    prompt = f"""ICP do workspace:
+- Produto que vendemos: {produto}
+- Empresa: {descricao}
+- ICP (texto): {icp}
+- ICP estruturado: {json.dumps(icp_estrut, ensure_ascii=False)}
+- Palavras-chave: {", ".join(palavras) if palavras else "—"}
+- Vertical/segmento alvo desta busca: {alvo}
+
+Encontre até {limit} EMPRESAS BRASILEIRAS reais que se encaixem nesse ICP e vertical.
+Priorize empresas com fit alto. Responda APENAS com JSON válido conforme o schema:
+{schema}
+Use Google Search ativamente. Não invente empresas nem sites."""
+
+    client = get_client_with_search()
+    last_err: str | None = None
+    empresas: list = []
+    for attempt in range(3):
+        try:
+            config = types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                system_instruction=SYSTEM_DISCOVERY,
+                temperature=0.2,
+                max_output_tokens=8192,
+            )
+            response = client.models.generate_content(
+                model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+                contents=prompt,
+                config=config,
+            )
+            text = (response.text or "").strip()
+            if not text:
+                last_err = "resposta vazia (rate limit do google_search?)"
+                time.sleep(8 * (attempt + 1))
+                continue
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:].strip()
+                text = text.rstrip("`").strip()
+            else:
+                m = re.search(r"\{[\s\S]*\}", text)
+                if m:
+                    text = m.group(0)
+            empresas = (json.loads(text, strict=False).get("empresas")) or []
+            break
+        except json.JSONDecodeError as e:
+            last_err = f"json_decode: {e}"
+            logger.warning("discover_leads tentativa %d: %s", attempt + 1, e)
+            time.sleep(5 * (attempt + 1))
+        except Exception as e:
+            last_err = str(e)
+            logger.warning("discover_leads tentativa %d: %s", attempt + 1, e)
+            time.sleep(5 * (attempt + 1))
+
+    if not empresas and last_err:
+        return {"erro": last_err, "leads": [], "n": 0}
+
+    vert_slug = _slug_simple(vertical_label or workspace.get("slug") or "icp")
+    # dedup por nome contra os leads já existentes do workspace (e dentro do lote)
+    existing_names = set()
+    try:
+        for l in store.all_leads(limit=5000):
+            nm = (l.get("empresa") or "").strip().lower()
+            if nm:
+                existing_names.add(nm)
+    except Exception:
+        pass
+    novos: list[dict[str, Any]] = []
+    for e in empresas[:limit]:
+        if not isinstance(e, dict):
+            continue
+        nome = (e.get("empresa") or "").strip()
+        if not nome or nome.lower() in existing_names:
+            continue
+        existing_names.add(nome.lower())
+        try:
+            score = int(float(e.get("score_icp"))) if e.get("score_icp") is not None else None
+            if score is not None:
+                score = max(0, min(100, score))
+        except (ValueError, TypeError):
+            score = None
+        site = e.get("site") if isinstance(e.get("site"), str) else ""
+        lead = {
+            "vertical": vert_slug,
+            "empresa": nome[:200],
+            "site": site or "",
+            "cnpj": e.get("cnpj") or None,
+            "segmento": e.get("segmento") or alvo,
+            "porte_estimado": e.get("porte_estimado") or "",
+            "score_icp": score,
+            "recomendacao": e.get("recomendacao") or "nutrir",
+            "gatilho_personalizado": e.get("gatilho_personalizado") or "",
+            "observacoes": e.get("motivo_fit") or "",
+            "fonte": "descoberta_icp",
+            "vertical_label": vertical_label or alvo,
+            "data_coleta": datetime.now().isoformat(timespec="seconds"),
+        }
+        try:
+            store.upsert_lead(lead)
+            novos.append(lead)
+        except Exception as ex:  # noqa: BLE001
+            logger.warning("Falha ao salvar lead descoberto %s: %s", nome, ex)
+    try:
+        store.log_event("descoberta_icp", {"vertical": vertical_label or alvo, "n": len(novos)})
+    except Exception:
+        pass
+    return {"leads": novos, "n": len(novos), "vertical": vertical_label or alvo}
 
 
 def enrich_lead_via_web(lead: dict[str, Any]) -> dict[str, Any]:
