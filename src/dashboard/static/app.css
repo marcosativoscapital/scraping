@@ -599,6 +599,11 @@ textarea.input {
 .btn--danger:hover:not(:disabled) { background: var(--color-bg-error-solid-hover); }
 .btn--danger:disabled { opacity: .5; cursor: not-allowed; }
 
+/* ---- Descoberta de leads por IA (modal) ---- */
+.disc-form { display: flex; flex-direction: column; gap: 14px; }
+.disc-insights { display: flex; flex-wrap: wrap; gap: 6px; }
+.disc-insight.is-active { background: var(--color-bg-brand-primary); color: var(--color-fg-brand-primary); border-color: var(--color-border-brand); }
+
 /* ====== MODAL ====== */
 .modal[hidden] { display: none; }
 .modal {

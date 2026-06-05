@@ -1043,6 +1043,7 @@ def enrich_lead_decisores(lead_id: int, x_api_token: Optional[str] = Header(defa
 class DiscoverRequest(BaseModel):
     vertical: Optional[str] = None
     limit: int = 8
+    refino: Optional[str] = None
 
 
 @app.post("/leads/discover")
@@ -1062,7 +1063,7 @@ def leads_discover(
         raise HTTPException(404, "Workspace não encontrado")
     limit = max(1, min(int(req.limit or 8), 15))
     try:
-        return discover_leads_via_icp(CONTROL.get_data_store(ws_id), ws, vertical_label=req.vertical, limit=limit)
+        return discover_leads_via_icp(CONTROL.get_data_store(ws_id), ws, vertical_label=req.vertical, limit=limit, refino=req.refino)
     except Exception as e:  # noqa: BLE001
         logger.exception("Descoberta de leads falhou (ws %s)", ws_id)
         raise HTTPException(500, f"Falha na descoberta: {e}")

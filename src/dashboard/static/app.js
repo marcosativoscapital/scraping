@@ -597,24 +597,73 @@
     }
   }
 
-  async function runDiscovery(verticalLabel, btn) {
-    const lbl = verticalLabel || 'o ICP do workspace';
-    if (!confirm(`Buscar leads reais para "${lbl}" usando IA (Gemini + Busca)?\n\nÉ uma chamada paga e pode levar ~30s.`)) return;
-    const result = document.getElementById('monitor-result');
-    if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
-    if (result) result.innerHTML = '<div class="empty">Descobrindo empresas que batem com o ICP… pode levar ~30s.</div>';
+  async function openDiscoverModal(presetVertical) {
+    const wsId = localStorage.getItem('workspaceId') || '1';
+    let anamnese = {};
+    let verticais = (_wsVerticais && _wsVerticais.slice()) || [];
     try {
-      const data = await api('/leads/discover', { method: 'POST', body: JSON.stringify({ vertical: verticalLabel || null, limit: 8 }) });
+      const w = await api(`/workspaces/${wsId}`);
+      anamnese = w.anamnese || {};
+      if ((anamnese.verticais_sugeridas || []).length) verticais = anamnese.verticais_sugeridas;
+    } catch (e) { /* usa _wsVerticais */ }
+    if (presetVertical && !verticais.includes(presetVertical)) verticais = [presetVertical, ...verticais];
+    const palavras = (anamnese.palavras_chave || []).slice(0, 10);
+    const angulos = ['porte (nº de funcionários)', 'região / UF', 'que investem em Meta/Google Ads', 'faturamento / orçamento de mídia', 'tecnologias / stack', 'crescimento recente / contratando'];
+    const insightChips = [...palavras, ...angulos]
+      .map((t) => `<button type="button" class="chip-btn disc-insight" data-ins="${escapeHtml(t)}">+ ${escapeHtml(t)}</button>`).join('');
+    const vertOpts = verticais.length
+      ? verticais.map((v) => `<option value="${escapeHtml(v)}"${presetVertical === v ? ' selected' : ''}>${escapeHtml(v.length > 60 ? v.slice(0, 58) + '…' : v)}</option>`).join('')
+      : '<option value="">ICP geral do workspace</option>';
+    const html = `
+      <div class="disc-form">
+        <label class="ws-field"><span>Vertical / segmento</span>
+          <select class="input" id="disc-vert">${vertOpts}</select></label>
+        <label class="ws-field"><span>Refinar busca <small class="muted">(opcional)</small></span>
+          <textarea class="input" id="disc-refino" rows="3" placeholder="Ex.: agências em SP com +50 funcionários que gerenciam Meta Ads para e-commerce"></textarea></label>
+        <div class="ws-field"><span>Sugestões de refino <small class="muted">(clique para adicionar)</small></span>
+          <div class="disc-insights">${insightChips}</div></div>
+        <label class="ws-field"><span>Quantidade de leads</span>
+          <input class="input" type="number" id="disc-limit" min="1" max="15" value="8" style="max-width:110px"></label>
+        <div class="ws-form__actions">
+          <button type="button" class="btn btn--secondary" id="disc-cancel">Cancelar</button>
+          <button type="button" class="btn btn--primary" id="disc-go"><svg width="16" height="16"><use href="#i-search"/></svg> Buscar com IA</button>
+        </div>
+        <p class="hint">Usa Gemini + Google Search (chamada paga). Leads já existentes no workspace são ignorados.</p>
+      </div>`;
+    showModal('Buscar leads por IA', html);
+    document.querySelectorAll('.disc-insight').forEach((b) => b.addEventListener('click', () => {
+      const ta = document.getElementById('disc-refino');
+      ta.value = ta.value.trim() ? `${ta.value.trim()}; ${b.dataset.ins}` : b.dataset.ins;
+      b.classList.add('is-active'); ta.focus();
+    }));
+    document.getElementById('disc-cancel').addEventListener('click', closeModal);
+    document.getElementById('disc-go').addEventListener('click', () => {
+      const vertical = document.getElementById('disc-vert').value || null;
+      const refino = document.getElementById('disc-refino').value.trim();
+      const limit = Math.max(1, Math.min(parseInt(document.getElementById('disc-limit').value, 10) || 8, 15));
+      closeModal();
+      runDiscovery(vertical, { refino, limit });
+    });
+  }
+
+  async function runDiscovery(verticalLabel, opts) {
+    opts = opts || {};
+    const refino = opts.refino || '';
+    const limit = opts.limit || 8;
+    const result = document.getElementById('monitor-result');
+    if (result) result.innerHTML = '<div class="empty">Descobrindo empresas que batem com o ICP… pode levar ~30s.</div>';
+    toast('Buscando leads com IA…');
+    try {
+      const data = await api('/leads/discover', { method: 'POST', body: JSON.stringify({ vertical: verticalLabel || null, refino: refino || null, limit }) });
       const n = data.n || 0;
+      const dup = data.duplicados || 0;
       const items = (data.leads || []).slice(0, 20).map((l) => `<li>${escapeHtml(l.empresa || '?')}${l.score_icp != null ? ` · score ${l.score_icp}` : ''}</li>`).join('');
-      if (result) result.innerHTML = `<div class="monitor-block monitor-block--success"><div class="monitor-block__title">🔎 ${n} lead(s) descoberto(s)${verticalLabel ? ` · ${escapeHtml(verticalLabel)}` : ''}</div>${n ? `<ul>${items}</ul>` : 'Nenhuma empresa nova encontrada.'}</div>`;
-      toast(n ? `${n} leads descobertos` : 'Nenhum lead novo encontrado', n ? 'success' : 'info');
+      if (result) result.innerHTML = `<div class="monitor-block monitor-block--success"><div class="monitor-block__title">🔎 ${n} novo(s) lead(s)${verticalLabel ? ` · ${escapeHtml(verticalLabel)}` : ''}${dup ? ` · ${dup} já existiam` : ''}</div>${n ? `<ul>${items}</ul>` : 'Nenhuma empresa nova (já estavam na base ou nada encontrado).'}</div>`;
+      toast(n ? `${n} leads descobertos${dup ? ` · ${dup} duplicados ignorados` : ''}` : 'Nenhum lead novo', n ? 'success' : 'info');
       loadLeads();
     } catch (e) {
       if (result) result.innerHTML = `<div class="monitor-block monitor-block--warning">Erro: ${escapeHtml(e.message)}</div>`;
       toast('Erro: ' + e.message, 'error');
-    } finally {
-      if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
     }
   }
 
@@ -639,7 +688,7 @@
       const fb = e.target.closest('[data-monitor]');
       if (fb) return runMonitor(fb.dataset.monitor, fb);
       const vb = e.target.closest('[data-monitor-vertical]');
-      if (vb) return runDiscovery(vb.dataset.monitorVertical, vb);
+      if (vb) return openDiscoverModal(vb.dataset.monitorVertical);
     });
     renderMonitorChips();
   })();
@@ -1044,7 +1093,7 @@
   document.getElementById('btn-scrape').addEventListener('click', async () => {
     const isCpaas = String(localStorage.getItem('workspaceId') || '1') === '1';
     if (!isCpaas) {
-      return runDiscovery((_wsVerticais && _wsVerticais[0]) || null, document.getElementById('btn-scrape'));
+      return openDiscoverModal((_wsVerticais && _wsVerticais[0]) || null);
     }
     const html = `
       <div class="settings-grid">

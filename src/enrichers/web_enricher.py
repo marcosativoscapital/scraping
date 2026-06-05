@@ -197,8 +197,31 @@ def _slug_simple(s: str) -> str:
     return s[:40] or "icp"
 
 
-def discover_leads_via_icp(store, workspace: dict, vertical_label: str | None = None, limit: int = 8) -> dict[str, Any]:
-    """Descobre empresas reais que batem com o ICP do workspace (Gemini + Google Search)."""
+def _norm_name(s: str | None) -> str:
+    """Nome normalizado para dedup (sem acento, sufixos societários/genéricos e pontuação)."""
+    s = (s or "").strip().lower()
+    for a, b in (("áàâã", "a"), ("éê", "e"), ("íî", "i"), ("óôõ", "o"), ("úû", "u"), ("ç", "c")):
+        for ch in a:
+            s = s.replace(ch, b)
+    s = re.sub(r"\b(ltda|me|epp|s\.?a\.?|eireli|inc|llc|co|company|brasil|brazil|group|grupo|holding)\b", " ", s)
+    return re.sub(r"[^a-z0-9]+", "", s)
+
+
+def _domain(site: str | None) -> str:
+    """Domínio raiz do site, para dedup mesmo quando a URL varia (path/locale)."""
+    s = (site or "").strip().lower()
+    s = re.sub(r"^https?://", "", s)
+    s = s.split("/")[0].split("?")[0]
+    if s.startswith("www."):
+        s = s[4:]
+    return s
+
+
+def discover_leads_via_icp(store, workspace: dict, vertical_label: str | None = None, limit: int = 8, refino: str | None = None) -> dict[str, Any]:
+    """Descobre empresas reais que batem com o ICP do workspace (Gemini + Google Search).
+
+    `refino` é texto livre do usuário (filtros/especificações) que entra no prompt
+    com prioridade para direcionar a busca (ex.: região, porte, tecnologias)."""
     produto = workspace.get("produto") or ""
     descricao = workspace.get("descricao") or ""
     icp = workspace.get("icp") or ""
@@ -219,13 +242,15 @@ def discover_leads_via_icp(store, workspace: dict, vertical_label: str | None = 
      "gatilho_personalizado": "1 frase de abordagem", "motivo_fit": "por que se encaixa"}
   ]
 }"""
+    refino_txt = (refino or "").strip()
+    refino_line = f"\n- Refinamentos/filtros do usuário (PRIORIZE estes critérios): {refino_txt}" if refino_txt else ""
     prompt = f"""ICP do workspace:
 - Produto que vendemos: {produto}
 - Empresa: {descricao}
 - ICP (texto): {icp}
 - ICP estruturado: {json.dumps(icp_estrut, ensure_ascii=False)}
 - Palavras-chave: {", ".join(palavras) if palavras else "—"}
-- Vertical/segmento alvo desta busca: {alvo}
+- Vertical/segmento alvo desta busca: {alvo}{refino_line}
 
 Encontre até {limit} EMPRESAS BRASILEIRAS reais que se encaixem nesse ICP e vertical.
 Priorize empresas com fit alto. Responda APENAS com JSON válido conforme o schema:
@@ -277,23 +302,44 @@ Use Google Search ativamente. Não invente empresas nem sites."""
         return {"erro": last_err, "leads": [], "n": 0}
 
     vert_slug = _slug_simple(vertical_label or workspace.get("slug") or "icp")
-    # dedup por nome contra os leads já existentes do workspace (e dentro do lote)
-    existing_names = set()
+    # dedup robusto: antes de criar um lead, verifica se já existe no workspace por
+    # nome normalizado, domínio do site OU CNPJ (e também dentro do próprio lote).
+    seen_names: set[str] = set()
+    seen_domains: set[str] = set()
+    seen_cnpjs: set[str] = set()
     try:
-        for l in store.all_leads(limit=5000):
-            nm = (l.get("empresa") or "").strip().lower()
-            if nm:
-                existing_names.add(nm)
+        for l in store.all_leads(limit=10000):
+            nk = _norm_name(l.get("empresa"))
+            if nk:
+                seen_names.add(nk)
+            dk = _domain(l.get("site"))
+            if dk:
+                seen_domains.add(dk)
+            ck = re.sub(r"\D", "", l.get("cnpj") or "")
+            if ck:
+                seen_cnpjs.add(ck)
     except Exception:
         pass
     novos: list[dict[str, Any]] = []
+    duplicados = 0
     for e in empresas[:limit]:
         if not isinstance(e, dict):
             continue
         nome = (e.get("empresa") or "").strip()
-        if not nome or nome.lower() in existing_names:
+        if not nome:
             continue
-        existing_names.add(nome.lower())
+        nk = _norm_name(nome)
+        dk = _domain(e.get("site") if isinstance(e.get("site"), str) else "")
+        ck = re.sub(r"\D", "", e.get("cnpj") or "")
+        if (nk and nk in seen_names) or (dk and dk in seen_domains) or (ck and ck in seen_cnpjs):
+            duplicados += 1
+            continue  # já existe — evita duplicata
+        if nk:
+            seen_names.add(nk)
+        if dk:
+            seen_domains.add(dk)
+        if ck:
+            seen_cnpjs.add(ck)
         try:
             score = int(float(e.get("score_icp"))) if e.get("score_icp") is not None else None
             if score is not None:
@@ -325,7 +371,7 @@ Use Google Search ativamente. Não invente empresas nem sites."""
         store.log_event("descoberta_icp", {"vertical": vertical_label or alvo, "n": len(novos)})
     except Exception:
         pass
-    return {"leads": novos, "n": len(novos), "vertical": vertical_label or alvo}
+    return {"leads": novos, "n": len(novos), "duplicados": duplicados, "vertical": vertical_label or alvo}
 
 
 def enrich_lead_via_web(lead: dict[str, Any]) -> dict[str, Any]:
