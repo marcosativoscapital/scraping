@@ -375,6 +375,16 @@
       catch (e) { toast('Erro: ' + e.message, 'error'); }
       return;
     }
+    if (act === 'exact') {
+      toast('Enviando ao Exact Spotter…');
+      try {
+        const res = await api(`/leads/${id}/exact`, { method: 'POST' });
+        if (res.ok) toast(res.dry_run ? 'Payload preparado (dry-run) — confira o log do servidor' : 'Lead enviado ao Exact Spotter', 'success');
+        else toast('Erro: ' + (res.erro || 'falha no envio'), 'error');
+        showLeadDetail(id);
+      } catch (e) { toast('Erro: ' + e.message, 'error'); }
+      return;
+    }
     if (act === 'enrich') {
       toast('Enriquecendo decisor via web…');
       try { await api(`/enrichment/lead/${id}`, { method: 'POST' }); showLeadDetail(id); }
@@ -408,6 +418,7 @@
     const enr = data.enrichment || {};
     const journey = data.journey || null;
     const decisores = data.decisores || [];
+    const exact = data.exact || null;
 
     const obSent = outbound.filter((m) => m.status === 'enviado' || m.status === 'respondido').length;
     const obReplied = outbound.filter((m) => m.status === 'respondido').length;
@@ -460,10 +471,12 @@
               <span class="badge badge--brand">${escapeHtml(verticalLabel(lead.vertical))}</span>
               <span class="${scoreClass(lead.score_icp)}">${lead.score_icp ?? '—'}</span>
               ${lead.recomendacao ? `<span class="badge">${escapeHtml(lead.recomendacao)}</span>` : ''}
+              ${exact ? `<span class="badge badge--success">Exact Spotter${exact.dry_run ? ' · dry-run' : ''}</span>` : ''}
             </div>
           </div>
           <div class="lp__actions">
             <button class="btn btn--secondary" data-lpact="nova-atv"><svg width="16" height="16"><use href="#i-plus"/></svg> Nova atividade</button>
+            <button class="btn btn--secondary" data-lpact="exact"><svg width="16" height="16"><use href="#i-send"/></svg> Enviar ao Spotter</button>
             <button class="btn btn--primary" data-lpact="gen-ob"><svg width="16" height="16"><use href="#i-zap"/></svg> Gerar outbound</button>
           </div>
         </header>

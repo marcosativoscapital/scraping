@@ -48,6 +48,7 @@ from ..enrichers.web_enricher import (
     enrich_top_n,
     find_and_save_decisores,
 )
+from ..integrations.exact_spotter import push_and_mark as exact_push
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -449,6 +450,7 @@ def db_lead_detail(lead_id: int, x_api_token: str | None = Header(default=None))
         "journey": payload.get("journey"),
         "enrichment": payload.get("web_enrichment"),
         "decisores": payload.get("decisores_extra") or [],
+        "exact": payload.get("exact_spotter"),
     }
 
 
@@ -1067,6 +1069,17 @@ def leads_discover(
     except Exception as e:  # noqa: BLE001
         logger.exception("Descoberta de leads falhou (ws %s)", ws_id)
         raise HTTPException(500, f"Falha na descoberta: {e}")
+
+
+@app.post("/leads/{lead_id:int}/exact")
+def leads_to_exact(lead_id: int, x_api_token: Optional[str] = Header(default=None)):
+    """Envia o lead ao Exact Spotter (dry-run por padrão; loga o payload sem enviar)."""
+    _auth(x_api_token)
+    try:
+        return exact_push(lead_id, store=STORE)
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Envio ao Exact Spotter falhou (lead %s)", lead_id)
+        raise HTTPException(500, f"Falha no envio ao Exact Spotter: {e}")
 
 
 # ====== ATIVIDADES (vendas / oportunidades) ======
