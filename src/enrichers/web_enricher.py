@@ -67,14 +67,31 @@ def get_client_with_search() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
+def _nivel_norm(nivel: str | None, cargo: str | None = "") -> str:
+    """Classifica em c_level | mid_level | operacional a partir do nível e/ou cargo."""
+    t = f"{nivel or ''} {cargo or ''}".lower()
+    if re.search(r"\bc[a-z]o\b", t) or any(
+        k in t for k in ("c-level", "clevel", "chief", "presidente", "vice-presid", "vice presid",
+                         "sócio", "socio", "founder", "fundador", "diretor", "director", "owner", "proprietár")
+    ):
+        return "c_level"
+    if any(k in t for k in ("head", "gerente", "gerência", "gerencia", "coordenad", "manager",
+                            "líder", "lider", "supervisor", "média gestão", "media gestao", "mid-level", "mid level")):
+        return "mid_level"
+    return "operacional"
+
+
 SYSTEM_DECISORES = """Você é um SDR sênior fazendo people-research B2B.
 Use Google Search (e perfis de LinkedIn públicos) para encontrar o MÁXIMO de pessoas-chave da
-empresa informada: sócios/founders, C-level (CEO, CTO, CFO, COO, CMO), diretores, heads e gerentes
-das áreas de Marketing/Growth, Tecnologia/Engenharia, Produto, Operações, Comercial e
-Compliance/Risco.
+empresa informada, distribuídas em TRÊS níveis hierárquicos:
+- C-level / decisores: sócios, founders, presidente, C-level (CEO, CTO, CFO, COO, CMO, CIO), diretores.
+- Média gestão: heads, gerentes, coordenadores e líderes de área.
+- Operacional: analistas, especialistas e demais influenciadores que usam/avaliam a solução.
+Cubra Marketing/Growth, Tecnologia/Engenharia, Produto, Operações, Comercial e Compliance/Risco.
 
-Para cada pessoa: nome completo, cargo, área e a URL do LinkedIn (se pública) + a fonte (URL).
-NUNCA invente nome ou URL de LinkedIn. Se não confirmar com confiança, não inclua. Português brasileiro."""
+Para cada pessoa: nome completo, cargo, área, NÍVEL (C-level | Média gestão | Operacional) e a URL do
+LinkedIn (se pública) + a fonte (URL). NUNCA invente nome ou URL de LinkedIn. Se não confirmar com
+confiança, não inclua. Português brasileiro."""
 
 
 def find_decisores_via_web(lead: dict[str, Any], limit: int = 12) -> dict[str, Any]:
@@ -86,7 +103,9 @@ def find_decisores_via_web(lead: dict[str, Any], limit: int = 12) -> dict[str, A
 
     schema = """{
   "decisores": [
-    {"nome": "Nome Completo", "cargo": "Cargo", "area": "Marketing|Tecnologia|Produto|Operações|Comercial|Compliance|Executivo",
+    {"nome": "Nome Completo", "cargo": "Cargo",
+     "area": "Marketing|Tecnologia|Produto|Operações|Comercial|Compliance|Executivo",
+     "nivel": "C-level|Média gestão|Operacional",
      "linkedin_url": "https://linkedin.com/in/... ou null", "fonte": "URL da fonte"}
   ],
   "fontes": ["URLs consultadas"]
@@ -96,8 +115,9 @@ def find_decisores_via_web(lead: dict[str, Any], limit: int = 12) -> dict[str, A
 empresa brasileira: {empresa}
 Site (se conhecido): {site}
 
-Traga o máximo possível (até {limit}) de pessoas REAIS, priorizando quem decide ou influencia a
-compra de software/comunicação. Responda APENAS com JSON válido conforme o schema:
+Traga o máximo possível (até {limit}) de pessoas REAIS, DISTRIBUÍDAS entre os três níveis
+(C-level, Média gestão e Operacional) e classifique o NÍVEL de cada uma. Responda APENAS com JSON
+válido conforme o schema:
 {schema}
 
 Use Google Search ativamente. Não invente — omita quem não confirmar."""
@@ -142,6 +162,7 @@ Use Google Search ativamente. Não invente — omita quem não confirmar."""
                     "nome": str(d.get("nome"))[:120],
                     "cargo": str(d.get("cargo") or "")[:120],
                     "area": str(d.get("area") or "")[:40],
+                    "nivel": _nivel_norm(d.get("nivel"), d.get("cargo")),
                     "linkedin_url": li if (isinstance(li, str) and li.startswith("http")) else None,
                     "fonte": str(d.get("fonte") or "")[:300],
                 })

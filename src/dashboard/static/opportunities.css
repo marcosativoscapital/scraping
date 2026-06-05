@@ -516,6 +516,9 @@
 .lp-dec__li svg { stroke: currentColor; }
 .lp-dec__li:hover { background: var(--color-bg-brand-primary); }
 .lp-dec__btn { width: 100%; justify-content: center; }
+.lp-dec-group + .lp-dec-group { margin-top: 10px; }
+.lp-dec-group__label { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: var(--font-bold); text-transform: uppercase; letter-spacing: .04em; color: var(--color-text-tertiary); padding: 6px 6px 4px; }
+.lp-dec-group__label span { font-size: 10px; background: var(--color-bg-secondary); color: var(--color-text-secondary); border-radius: var(--radius-full); padding: 0 7px; font-weight: var(--font-semibold); }
 .btn.is-loading { opacity: .6; cursor: progress; pointer-events: none; }
 
 /* ---- Outbound: card por empresa + jornada + canais ---- */

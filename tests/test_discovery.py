@@ -2,7 +2,24 @@
 
 from __future__ import annotations
 
-from src.enrichers.web_enricher import _domain, _norm_name
+from src.enrichers.web_enricher import _domain, _nivel_norm, _norm_name
+
+
+def test_nivel_norm_classifica_tres_niveis():
+    # C-level
+    assert _nivel_norm("C-level", "CEO") == "c_level"
+    assert _nivel_norm(None, "Diretora de Marketing") == "c_level"
+    assert _nivel_norm(None, "Sócio-fundador") == "c_level"
+    assert _nivel_norm(None, "CFO") == "c_level"
+    # Média gestão
+    assert _nivel_norm("Média gestão", "Head de Growth") == "mid_level"
+    assert _nivel_norm(None, "Gerente de Performance") == "mid_level"
+    assert _nivel_norm(None, "Coordenador de Mídia") == "mid_level"
+    # Operacional (default)
+    assert _nivel_norm(None, "Analista de Tráfego") == "operacional"
+    assert _nivel_norm(None, "") == "operacional"
+    # não confunde "negócio" (contém "cio") com C-level
+    assert _nivel_norm(None, "Analista de Negócios") == "operacional"
 
 
 def test_norm_name_colapsa_variantes():

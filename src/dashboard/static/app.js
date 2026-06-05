@@ -428,7 +428,7 @@
 
     const info = (label, val) => (val ? `<div class="lp-info"><span>${label}</span><strong>${escapeHtml(String(val))}</strong></div>` : '');
     const enrTriggers = (enr.gatilhos_recentes || []).slice(0, 4).map((g) => `<li>${escapeHtml(g)}</li>`).join('');
-    const decHtml = decisores.length ? decisores.map((d) => `
+    const decRow = (d) => `
       <div class="lp-dec">
         <span class="lp-dec__av">${escapeHtml(initials(d.nome || '?'))}</span>
         <div class="lp-dec__main">
@@ -436,7 +436,16 @@
           <span class="lp-dec__role">${escapeHtml(d.cargo || '')}${d.area ? ' · ' + escapeHtml(d.area) : ''}</span>
         </div>
         ${d.linkedin_url ? `<a class="lp-dec__li" href="${d.linkedin_url}" target="_blank" rel="noopener" aria-label="Ver no LinkedIn"><svg width="15" height="15"><use href="#i-link"/></svg></a>` : ''}
-      </div>`).join('') : '<div class="lp-empty">Pesquise no LinkedIn, redes e site por mais pessoas-chave da empresa.</div>';
+      </div>`;
+    const decBucket = (d) => (d.nivel === 'c_level' || d.nivel === 'mid_level') ? d.nivel : 'operacional';
+    const DEC_NIVEIS = [['c_level', 'C-level'], ['mid_level', 'Média gestão'], ['operacional', 'Operacional']];
+    const decHtml = decisores.length
+      ? DEC_NIVEIS.map(([key, label]) => {
+          const items = decisores.filter((d) => decBucket(d) === key);
+          if (!items.length) return '';
+          return `<div class="lp-dec-group"><div class="lp-dec-group__label">${label} <span>${items.length}</span></div>${items.map(decRow).join('')}</div>`;
+        }).join('')
+      : '<div class="lp-empty">Pesquise no LinkedIn, redes e site por mais pessoas-chave da empresa.</div>';
 
     document.getElementById('leadpage').innerHTML = `
       <div class="lp">
