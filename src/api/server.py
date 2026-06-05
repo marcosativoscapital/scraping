@@ -42,7 +42,7 @@ from ..playbooks.selector import select_playbooks_for_lead
 from ..scrapers.linkedin import parse_linkedin_payload
 from ..sdr.queue import SDRQueue
 from ..claude_agent.client import GeminiClient
-from ..enrichers.web_enricher import enrich_and_save, enrich_top_n
+from ..enrichers.web_enricher import enrich_and_save, enrich_top_n, find_and_save_decisores
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -417,6 +417,7 @@ def db_lead_detail(lead_id: int, x_api_token: str | None = Header(default=None))
         "atividades": STORE.list_atividades(lead_id=lead_id, order="asc"),
         "journey": payload.get("journey"),
         "enrichment": payload.get("web_enrichment"),
+        "decisores": payload.get("decisores_extra") or [],
     }
 
 
@@ -995,6 +996,17 @@ def enrich_lead(lead_id: int, x_api_token: Optional[str] = Header(default=None))
     """Enriquece um lead único sob demanda."""
     _auth(x_api_token)
     return enrich_and_save(lead_id, store=STORE)
+
+
+@app.post("/enrichment/lead/{lead_id}/decisores")
+def enrich_lead_decisores(lead_id: int, x_api_token: Optional[str] = Header(default=None)):
+    """Busca na web/LinkedIn o máximo de possíveis decisores da empresa do lead."""
+    _auth(x_api_token)
+    try:
+        return find_and_save_decisores(lead_id, store=STORE)
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Busca de decisores falhou (lead %s)", lead_id)
+        raise HTTPException(500, f"Falha ao buscar decisores: {e}")
 
 
 # ====== ATIVIDADES (vendas / oportunidades) ======

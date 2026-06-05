@@ -376,6 +376,21 @@
       toast('Enriquecendo decisor via web…');
       try { await api(`/enrichment/lead/${id}`, { method: 'POST' }); showLeadDetail(id); }
       catch (e) { toast('Erro: ' + e.message, 'error'); }
+      return;
+    }
+    if (act === 'buscar-decisores') {
+      const btn = document.querySelector('.lp__contact [data-lpact="buscar-decisores"]');
+      if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
+      toast('Buscando decisores no LinkedIn, redes e site… (pode levar ~30s)');
+      try {
+        const res = await api(`/enrichment/lead/${id}/decisores`, { method: 'POST' });
+        const n = (res.decisores || []).length;
+        toast(n ? `${n} possíveis decisores encontrados` : 'Nenhum decisor novo encontrado', n ? 'success' : 'info');
+        showLeadDetail(id);
+      } catch (e) {
+        toast('Erro: ' + e.message, 'error');
+        if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
+      }
     }
   }
 
@@ -389,6 +404,7 @@
     const ats = data.atividades || [];
     const enr = data.enrichment || {};
     const journey = data.journey || null;
+    const decisores = data.decisores || [];
 
     const obSent = outbound.filter((m) => m.status === 'enviado' || m.status === 'respondido').length;
     const obReplied = outbound.filter((m) => m.status === 'respondido').length;
@@ -412,6 +428,15 @@
 
     const info = (label, val) => (val ? `<div class="lp-info"><span>${label}</span><strong>${escapeHtml(String(val))}</strong></div>` : '');
     const enrTriggers = (enr.gatilhos_recentes || []).slice(0, 4).map((g) => `<li>${escapeHtml(g)}</li>`).join('');
+    const decHtml = decisores.length ? decisores.map((d) => `
+      <div class="lp-dec">
+        <span class="lp-dec__av">${escapeHtml(initials(d.nome || '?'))}</span>
+        <div class="lp-dec__main">
+          <span class="lp-dec__name">${escapeHtml(d.nome || '—')}</span>
+          <span class="lp-dec__role">${escapeHtml(d.cargo || '')}${d.area ? ' · ' + escapeHtml(d.area) : ''}</span>
+        </div>
+        ${d.linkedin_url ? `<a class="lp-dec__li" href="${d.linkedin_url}" target="_blank" rel="noopener" aria-label="Ver no LinkedIn"><svg width="15" height="15"><use href="#i-link"/></svg></a>` : ''}
+      </div>`).join('') : '<div class="lp-empty">Pesquise no LinkedIn, redes e site por mais pessoas-chave da empresa.</div>';
 
     document.getElementById('leadpage').innerHTML = `
       <div class="lp">
@@ -485,6 +510,11 @@
                 ${info('E-mail', lead.email_provavel)}${info('Telefone', lead.telefone)}
                 ${lead.decisor_linkedin ? `<div class="lp-info"><span>LinkedIn</span><a href="${lead.decisor_linkedin}" target="_blank">perfil</a></div>` : ''}
               ` : '<div class="lp-empty">Decisor não enriquecido. <button class="btn btn--secondary btn--sm" data-lpact="enrich">Enriquecer</button></div>'}
+            </div>
+            <div class="lp-card lp-card--dec">
+              <div class="lp-card__head"><h3>Possíveis decisores</h3>${decisores.length ? `<span class="lp-dec__count">${decisores.length}</span>` : ''}</div>
+              <div class="lp-decs">${decHtml}</div>
+              <button class="btn btn--secondary lp-dec__btn" data-lpact="buscar-decisores"><svg width="16" height="16"><use href="#i-search"/></svg> Buscar mais possíveis decisores</button>
             </div>
           </aside>
         </div>

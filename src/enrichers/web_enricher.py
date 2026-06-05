@@ -66,6 +66,120 @@ def get_client_with_search() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
+SYSTEM_DECISORES = """Você é um SDR sênior fazendo people-research B2B.
+Use Google Search (e perfis de LinkedIn públicos) para encontrar o MÁXIMO de pessoas-chave da
+empresa informada: sócios/founders, C-level (CEO, CTO, CFO, COO, CMO), diretores, heads e gerentes
+das áreas de Marketing/Growth, Tecnologia/Engenharia, Produto, Operações, Comercial e
+Compliance/Risco.
+
+Para cada pessoa: nome completo, cargo, área e a URL do LinkedIn (se pública) + a fonte (URL).
+NUNCA invente nome ou URL de LinkedIn. Se não confirmar com confiança, não inclua. Português brasileiro."""
+
+
+def find_decisores_via_web(lead: dict[str, Any], limit: int = 12) -> dict[str, Any]:
+    """Pesquisa na web/LinkedIn o máximo de pessoas-chave (decisores) da empresa."""
+    empresa = lead.get("empresa") or lead.get("razao_social", "")
+    site = lead.get("site") or ""
+    if not empresa:
+        return {"erro": "sem nome de empresa", "decisores": []}
+
+    schema = """{
+  "decisores": [
+    {"nome": "Nome Completo", "cargo": "Cargo", "area": "Marketing|Tecnologia|Produto|Operações|Comercial|Compliance|Executivo",
+     "linkedin_url": "https://linkedin.com/in/... ou null", "fonte": "URL da fonte"}
+  ],
+  "fontes": ["URLs consultadas"]
+}"""
+
+    prompt = f"""Pesquise no Google e no LinkedIn as PESSOAS-CHAVE (decisores e influenciadores) da
+empresa brasileira: {empresa}
+Site (se conhecido): {site}
+
+Traga o máximo possível (até {limit}) de pessoas REAIS, priorizando quem decide ou influencia a
+compra de software/comunicação. Responda APENAS com JSON válido conforme o schema:
+{schema}
+
+Use Google Search ativamente. Não invente — omita quem não confirmar."""
+
+    client = get_client_with_search()
+    last_err: str | None = None
+    text = ""
+    for attempt in range(3):
+        try:
+            config = types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                system_instruction=SYSTEM_DECISORES,
+                temperature=0.0,
+                max_output_tokens=8192,
+            )
+            response = client.models.generate_content(
+                model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+                contents=prompt,
+                config=config,
+            )
+            text = (response.text or "").strip()
+            if not text:
+                last_err = "resposta vazia (rate limit do google_search?)"
+                time.sleep(8 * (attempt + 1))
+                continue
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:].strip()
+                text = text.rstrip("`").strip()
+            else:
+                m = re.search(r"\{[\s\S]*\}", text)
+                if m:
+                    text = m.group(0)
+            data = json.loads(text, strict=False)
+            out: list[dict[str, Any]] = []
+            for d in (data.get("decisores") or [])[:limit]:
+                if not isinstance(d, dict) or not d.get("nome"):
+                    continue
+                li = d.get("linkedin_url")
+                out.append({
+                    "nome": str(d.get("nome"))[:120],
+                    "cargo": str(d.get("cargo") or "")[:120],
+                    "area": str(d.get("area") or "")[:40],
+                    "linkedin_url": li if (isinstance(li, str) and li.startswith("http")) else None,
+                    "fonte": str(d.get("fonte") or "")[:300],
+                })
+            return {"decisores": out, "fontes": data.get("fontes") or []}
+        except json.JSONDecodeError as e:
+            last_err = f"json_decode: {e}"
+            logger.warning("find_decisores tentativa %d: %s", attempt + 1, e)
+            time.sleep(5 * (attempt + 1))
+        except Exception as e:
+            last_err = str(e)
+            logger.warning("find_decisores tentativa %d: %s", attempt + 1, e)
+            time.sleep(5 * (attempt + 1))
+
+    return {"erro": last_err, "decisores": []}
+
+
+def find_and_save_decisores(lead_id: int, store: "Store | None" = None, limit: int = 12) -> dict[str, Any]:
+    """Busca decisores na web e salva a lista em payload_json['decisores_extra']."""
+    store = store or Store()
+    with store.conn() as c:
+        row = c.execute("SELECT * FROM leads WHERE id=?", (lead_id,)).fetchone()
+    if not row:
+        return {"erro": f"lead {lead_id} não encontrado", "decisores": []}
+    lead = dict(row)
+    res = find_decisores_via_web(lead, limit=limit)
+    decisores = res.get("decisores") or []
+    if decisores:
+        with store.conn() as c:
+            payload = lead.get("payload_json") or "{}"
+            pd = json.loads(payload) if isinstance(payload, str) else (payload or {})
+            pd["decisores_extra"] = decisores
+            c.execute(
+                "UPDATE leads SET payload_json=? WHERE id=?",
+                (json.dumps(pd, ensure_ascii=False, default=str), lead_id),
+            )
+        store.log_event("decisores_busca", {"lead_id": lead_id, "n": len(decisores)})
+    return res
+
+
 def enrich_lead_via_web(lead: dict[str, Any]) -> dict[str, Any]:
     """Pesquisa web + LinkedIn para enriquecer um lead.
 
