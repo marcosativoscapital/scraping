@@ -281,6 +281,20 @@ def workspaces_add_member(ws_id: int, payload: MemberPayload, x_api_token: Optio
     return {"ok": True, "membros": CONTROL.list_members(ws_id)}
 
 
+@app.delete("/workspaces/{ws_id:int}")
+def workspaces_delete(ws_id: int, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    if ws_id == 1:
+        raise HTTPException(400, "O workspace principal não pode ser excluído")
+    if not CONTROL.get_workspace(ws_id):
+        raise HTTPException(404, "Workspace não encontrado")
+    try:
+        CONTROL.delete_workspace(ws_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
 # ====== MODELS ======
 class LinkedInPayload(BaseModel):
     source: str

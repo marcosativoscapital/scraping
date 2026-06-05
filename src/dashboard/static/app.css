@@ -58,7 +58,9 @@ code {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 20px 20px 24px;
+  height: 64px;
+  padding: 0 20px;
+  box-sizing: border-box;
   border-bottom: 1px solid var(--color-border-secondary);
 }
 .brand-mark {
@@ -456,7 +458,7 @@ code {
 /* ====== FILTERS ====== */
 .filters {
   display: grid;
-  grid-template-columns: 180px 130px 1fr auto;
+  grid-template-columns: 180px 130px 1fr auto auto;
   gap: 12px;
   margin-bottom: 16px;
   padding: 16px 20px;
@@ -578,6 +580,24 @@ textarea.input {
 .settings-grid { display: flex; flex-direction: column; gap: 14px; max-width: 520px; }
 .setting-row { display: flex; flex-direction: column; gap: 6px; }
 .hint { font-size: var(--text-xs); color: var(--color-text-secondary); margin: 4px 0 0; }
+
+/* ---- Settings: pessoas do workspace + zona de perigo ---- */
+.ws-invite { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.ws-invite .input { flex: 1; min-width: 200px; }
+.ws-invite .select { width: 140px; }
+.member-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.member { display: flex; align-items: center; gap: 10px; padding: 8px 4px; }
+.member + .member { border-top: 1px solid var(--color-border-secondary); }
+.member__avatar { width: 30px; height: 30px; border-radius: var(--radius-full); display: grid; place-items: center; background: var(--color-bg-brand-primary); color: var(--color-fg-brand-primary); font-weight: var(--font-bold); font-size: var(--text-xs); flex-shrink: 0; text-transform: uppercase; }
+.member__email { flex: 1; min-width: 0; color: var(--color-text-primary); font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member__role { white-space: nowrap; }
+.member__status { font-size: var(--text-xs); color: var(--color-text-tertiary); white-space: nowrap; }
+.card--danger { border-color: color-mix(in srgb, var(--color-text-error-primary) 35%, var(--color-border-secondary)); }
+.card--danger .card__head h2 { color: var(--color-text-error-primary); }
+.danger-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.btn--danger { background: var(--color-bg-error-solid); color: #fff; border: 1px solid transparent; }
+.btn--danger:hover:not(:disabled) { background: var(--color-bg-error-solid-hover); }
+.btn--danger:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ====== MODAL ====== */
 .modal[hidden] { display: none; }

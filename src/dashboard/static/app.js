@@ -903,6 +903,38 @@
     document.getElementById('set-api-url').value = API_URL;
     document.getElementById('set-api-token').value = API_TOKEN;
     refreshScheduler();
+    loadWorkspaceSettings();
+  }
+
+  function roleLabel(r) { return { leitor: 'Leitor', editor: 'Editor', admin: 'Admin' }[r] || r || '—'; }
+
+  async function renderMembers(wsId) {
+    const ul = document.getElementById('member-list');
+    if (!ul) return;
+    let membros = [];
+    try { membros = (await api(`/workspaces/${wsId}/members`)).membros || []; } catch (e) { /* ignore */ }
+    ul.innerHTML = membros.length ? membros.map((m) => `
+      <li class="member">
+        <span class="member__avatar">${escapeHtml((m.email || '?')[0])}</span>
+        <span class="member__email">${escapeHtml(m.email)}</span>
+        <span class="badge badge--brand member__role">${escapeHtml(roleLabel(m.role))}</span>
+        <span class="member__status">${m.status === 'invited' ? 'convidado' : 'ativo'}</span>
+      </li>`).join('') : '<li class="lp-empty">Ninguém convidado ainda.</li>';
+  }
+
+  async function loadWorkspaceSettings() {
+    const wsId = localStorage.getItem('workspaceId') || '1';
+    const ws = _wsList.find((x) => String(x.id) === String(wsId)) || {};
+    const isPrimary = String(wsId) === '1';
+    const nameEl = document.getElementById('danger-ws-name');
+    if (nameEl) nameEl.textContent = ws.nome || 'Workspace';
+    const hint = document.getElementById('danger-hint');
+    if (hint) hint.textContent = isPrimary
+      ? 'O workspace principal (CPaaS) não pode ser excluído.'
+      : 'Apaga o workspace e todos os seus leads e dados — sem volta.';
+    const delBtn = document.getElementById('btn-delete-ws');
+    if (delBtn) { delBtn.disabled = isPrimary; delBtn.title = isPrimary ? 'O workspace principal não pode ser excluído' : ''; }
+    await renderMembers(wsId);
   }
   document.getElementById('btn-save-settings').addEventListener('click', () => {
     API_URL = document.getElementById('set-api-url').value.trim();
@@ -940,6 +972,45 @@
       toast(`Re-score: ${data.atualizados} atualizados, ${data.promovidos.length} promovidos`, 'success');
       loadOverview();
     } catch (e) { toast(`Erro: ${e.message}`, 'error'); }
+  });
+
+  document.getElementById('btn-invite').addEventListener('click', async () => {
+    const emailEl = document.getElementById('set-invite-email');
+    const email = emailEl.value.trim();
+    const role = document.getElementById('set-invite-role').value;
+    if (!email) { toast('Informe um e-mail', 'error'); return; }
+    const wsId = localStorage.getItem('workspaceId') || '1';
+    try {
+      await api(`/workspaces/${wsId}/members`, { method: 'POST', body: JSON.stringify({ email, role }) });
+      toast('Convite registrado', 'success');
+      emailEl.value = '';
+      renderMembers(wsId);
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
+  });
+
+  document.getElementById('btn-delete-ws').addEventListener('click', () => {
+    const wsId = localStorage.getItem('workspaceId') || '1';
+    if (String(wsId) === '1') { toast('O workspace principal não pode ser excluído', 'error'); return; }
+    const ws = _wsList.find((x) => String(x.id) === String(wsId)) || {};
+    const html = `
+      <p>Tem certeza que deseja excluir o workspace <strong>"${escapeHtml(ws.nome || '')}"</strong>?</p>
+      <p class="hint">Isso apaga todos os leads, atividades e dados deste workspace. Esta ação é irreversível.</p>
+      <div class="ws-form__actions">
+        <button type="button" class="btn btn--secondary" id="del-cancel">Cancelar</button>
+        <button type="button" class="btn btn--danger" id="del-confirm">Excluir definitivamente</button>
+      </div>`;
+    showModal('Deletar workspace', html);
+    document.getElementById('del-cancel').addEventListener('click', closeModal);
+    document.getElementById('del-confirm').addEventListener('click', async () => {
+      try {
+        await api(`/workspaces/${wsId}`, { method: 'DELETE' });
+        closeModal();
+        toast('Workspace excluído', 'success');
+        localStorage.setItem('workspaceId', '1');
+        localStorage.setItem('workspaceCor', 'cpaas');
+        location.reload();
+      } catch (e) { toast('Erro: ' + e.message, 'error'); }
+    });
   });
 
   // ====== TOP ACTIONS ======

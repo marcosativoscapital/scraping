@@ -183,6 +183,33 @@ class ControlStore:
             i += 1
         return f"{base}-{i}"
 
+    def delete_workspace(self, ws_id: int) -> bool:
+        """Remove um workspace: registro + membros + banco de dados próprio.
+
+        O workspace #1 (principal/CPaaS) é protegido e nunca pode ser excluído,
+        e o banco padrão (default_data_db) jamais é apagado.
+        """
+        ws_id = int(ws_id)
+        if ws_id == 1:
+            raise ValueError("O workspace principal não pode ser excluído")
+        ws = self.get_workspace(ws_id)
+        if not ws:
+            return False
+        with self.conn() as c:
+            c.execute("DELETE FROM workspace_members WHERE workspace_id=?", (ws_id,))
+            c.execute("DELETE FROM workspaces WHERE id=?", (ws_id,))
+        self._stores.pop(ws_id, None)
+        db_path = ws.get("db_path")
+        if db_path and str(db_path) != str(self.default_data_db):
+            for suffix in ("", "-wal", "-shm"):
+                p = Path(str(db_path) + suffix)
+                try:
+                    if p.exists():
+                        p.unlink()
+                except OSError:
+                    pass
+        return True
+
     # ====== Membros ======
     def add_member(self, ws_id: int, email: str, role: str = "leitor", status: str = "active") -> None:
         role = role if role in ROLES else "leitor"

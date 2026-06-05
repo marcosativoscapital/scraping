@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Solve Scraper · Solvefy CPaaS</title>
   <link rel="stylesheet" href="tokens.css" />
-  <link rel="stylesheet" href="app.css?v=4" />
-  <link rel="stylesheet" href="opportunities.css?v=4" />
+  <link rel="stylesheet" href="app.css?v=5" />
+  <link rel="stylesheet" href="opportunities.css?v=5" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -343,12 +343,11 @@
                 Exportar CSV
               </button>
             </div>
-          </div>
-
-          <div class="leads-viewbar">
-            <div class="view-toggle" id="leads-view-toggle">
-              <button type="button" data-view="lista" class="is-active">Lista</button>
-              <button type="button" data-view="cards">Cartões</button>
+            <div class="filter-group filter-group--actions">
+              <div class="view-toggle" id="leads-view-toggle">
+                <button type="button" data-view="lista" class="is-active">Lista</button>
+                <button type="button" data-view="cards">Cartões</button>
+              </div>
             </div>
           </div>
 
@@ -538,6 +537,45 @@
               </div>
             </div>
           </div>
+
+          <div class="card">
+            <div class="card__head">
+              <h2>Pessoas do workspace</h2>
+              <p class="card__sub">Convide pessoas e defina o nível de acesso.</p>
+            </div>
+            <div class="settings-grid">
+              <div class="setting-row">
+                <div class="ws-invite">
+                  <input type="email" id="set-invite-email" class="input" placeholder="email@empresa.com" />
+                  <select id="set-invite-role" class="select">
+                    <option value="leitor">Leitor</option>
+                    <option value="editor">Editor</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <button class="btn btn--primary" id="btn-invite">Convidar</button>
+                </div>
+              </div>
+              <div class="setting-row">
+                <ul class="member-list" id="member-list"></ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card--danger">
+            <div class="card__head">
+              <h2>Zona de perigo</h2>
+              <p class="card__sub">Ações irreversíveis para este workspace.</p>
+            </div>
+            <div class="settings-grid">
+              <div class="setting-row danger-row">
+                <div>
+                  <strong id="danger-ws-name">—</strong>
+                  <p class="hint" id="danger-hint">Apaga o workspace e todos os seus leads e dados — sem volta.</p>
+                </div>
+                <button class="btn btn--danger" id="btn-delete-ws">Deletar workspace</button>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- ============== OPORTUNIDADES ============== -->
@@ -631,6 +669,6 @@
   <div class="toast-wrap" id="toast-wrap"></div>
 
   <div class="leadpage" id="leadpage" hidden></div>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

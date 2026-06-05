@@ -456,7 +456,7 @@
 .ws-anamnese__sec ul { margin: 0; padding-left: 18px; color: var(--color-text-secondary); }
 
 /* Logo do sistema (Solvefy Leads) */
-.brand-logo { width: 100%; max-width: 180px; height: auto; display: block; }
+.brand-logo { width: 100%; max-width: 180px; height: auto; max-height: 40px; display: block; }
 .brand-logo--lg { width: auto; max-width: 200px; height: 32px; margin: 0 auto 6px; }
 
 /* ===== Página do lead (tela cheia) ===== */

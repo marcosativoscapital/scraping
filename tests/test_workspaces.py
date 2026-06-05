@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import tempfile
 
+import pytest
+
 from src.workspaces.control import ControlStore
 
 
@@ -75,3 +77,24 @@ def test_cor_invalida_cai_para_cpaas():
     cs = _control()
     ws = cs.create_workspace("Y", cor="roxo-maluco", owner_email="d@y.com")
     assert ws["cor"] == "cpaas"
+
+
+def test_delete_workspace_remove_tudo():
+    cs = _control()
+    ws = cs.create_workspace("Apagavel", owner_email="d@z.com",
+                             membros=[{"email": "x@z.com", "role": "leitor"}])
+    wid = ws["id"]
+    db_path = ws["db_path"]
+    assert os.path.exists(db_path)
+    assert cs.delete_workspace(wid) is True
+    assert cs.get_workspace(wid) is None
+    assert cs.list_members(wid) == []
+    assert not os.path.exists(db_path)  # banco do workspace apagado
+    assert wid not in cs._stores
+
+
+def test_delete_workspace_protege_principal():
+    cs = _control()
+    with pytest.raises(ValueError):
+        cs.delete_workspace(1)
+    assert cs.get_workspace(1) is not None  # principal intacto
