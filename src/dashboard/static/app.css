@@ -231,7 +231,7 @@ code {
 }
 
 /* ====== CONTENT ====== */
-.content { padding: 24px; max-width: 1280px; margin: 0 auto; width: 100%; }
+.content { padding: 24px; width: 100%; }
 
 .tab-panel { display: none; }
 .tab-panel.is-active { display: block; }
