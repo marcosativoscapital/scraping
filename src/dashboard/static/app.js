@@ -917,8 +917,8 @@
       <li class="member">
         <span class="member__avatar">${escapeHtml((m.email || '?')[0])}</span>
         <span class="member__email">${escapeHtml(m.email)}</span>
-        <span class="badge badge--brand member__role">${escapeHtml(roleLabel(m.role))}</span>
-        <span class="member__status">${m.status === 'invited' ? 'convidado' : 'ativo'}</span>
+        <span class="badge ${m.is_owner ? 'badge--brand' : ''} member__role">${m.is_owner ? 'Dono' : escapeHtml(roleLabel(m.role))}</span>
+        <span class="member__status">${m.is_owner ? '' : (m.status === 'invited' ? 'convidado' : 'ativo')}</span>
       </li>`).join('') : '<li class="lp-empty">Ninguém convidado ainda.</li>';
   }
 
@@ -2103,6 +2103,7 @@
   };
   let _wsList = [];
   let _wsBound = false;
+  let _accountEmail = null;
 
   function applyWorkspaceTheme(cor) {
     const root = document.documentElement;
@@ -2124,6 +2125,10 @@
       });
     }
     try { _wsList = (await api('/workspaces')).workspaces || []; } catch (e) { _wsList = []; }
+    if (!_accountEmail) {
+      const primary = _wsList.find((x) => String(x.id) === '1');
+      if (primary && primary.owner_email) _accountEmail = primary.owner_email;
+    }
     const cur = localStorage.getItem('workspaceId') || '1';
     const w = _wsList.find((x) => String(x.id) === String(cur)) || _wsList[0];
     if (w) {
@@ -2218,6 +2223,7 @@
       email: r.querySelector('input').value.trim(), role: r.querySelector('select').value,
     })).filter((m) => m.email);
     fd.append('membros', JSON.stringify(membros));
+    if (_accountEmail) fd.append('owner_email', _accountEmail);
     const df = document.getElementById('f-descricao_file').files[0]; if (df) fd.append('descricao_file', df);
     const icf = document.getElementById('f-icp_file').files[0]; if (icf) fd.append('icp_file', icf);
     const btn = document.getElementById('ws-submit'); btn.disabled = true; btn.textContent = 'Analisando com Gemini…';
@@ -2260,6 +2266,7 @@
   async function refreshAuthFooter() {
     try {
       const me = await api('/auth/me');
+      if (me && me.email) _accountEmail = me.email;
       const el = document.getElementById('auth-user');
       if (el && me && me.autenticado && me.via === 'google') {
         el.innerHTML = `<span class="auth-user__name">${escapeHtml(me.nome || me.email || '')}</span><button class="auth-logout" id="btn-logout">Sair</button>`;

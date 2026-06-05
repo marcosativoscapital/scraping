@@ -169,6 +169,7 @@ class MemberPayload(BaseModel):
 
 def _ws_public(w: dict) -> dict:
     out = {k: w.get(k) for k in ("id", "slug", "nome", "produto", "site", "descricao", "icp", "cor", "criado_em")}
+    out["owner_email"] = w.get("owner_email")
     out["verticais"] = _lead_payload(w.get("anamnese_json")).get("verticais_sugeridas") or []
     return out
 
@@ -213,12 +214,14 @@ async def workspaces_create(
     icp: str = Form(""),
     cor: str = Form("cpaas"),
     membros: str = Form("[]"),
+    owner_email: str = Form(""),
     descricao_file: Optional[UploadFile] = File(None),
     icp_file: Optional[UploadFile] = File(None),
     x_api_token: Optional[str] = Header(default=None),
 ):
     _auth(x_api_token)
-    owner = (current_user(x_api_token) or {}).get("email")
+    # dono = usuário autenticado (login Google) ou, em modo token, o e-mail informado pelo front
+    owner = (current_user(x_api_token) or {}).get("email") or (owner_email.strip() or None)
 
     anexos: list[tuple[bytes, str]] = []
     extra: list[str] = []
@@ -269,7 +272,16 @@ async def workspaces_create(
 @app.get("/workspaces/{ws_id:int}/members")
 def workspaces_members(ws_id: int, x_api_token: Optional[str] = Header(default=None)):
     _auth(x_api_token)
-    return {"membros": CONTROL.list_members(ws_id)}
+    ws = CONTROL.get_workspace(ws_id)
+    owner = (ws or {}).get("owner_email")
+    membros = CONTROL.list_members(ws_id)
+    # garante o dono na lista mesmo se não houver linha em workspace_members
+    if owner and owner.lower() not in {(m.get("email") or "").lower() for m in membros}:
+        membros = [{"email": owner, "role": "admin", "status": "active"}] + membros
+    for m in membros:
+        m["is_owner"] = bool(owner and (m.get("email") or "").lower() == owner.lower())
+    membros.sort(key=lambda m: (not m.get("is_owner"),))  # dono primeiro
+    return {"owner_email": owner, "membros": membros}
 
 
 @app.post("/workspaces/{ws_id:int}/members")
