@@ -395,6 +395,25 @@ code {
 .chip-btn--sm { padding: 5px 10px; font-size: var(--text-xs); text-align: center; white-space: nowrap; }
 .data-table .badge { white-space: nowrap; }
 
+/* Leads: alternância lista/cartões + visão em cartões */
+.leads-viewbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.view-toggle { display: inline-flex; background: var(--color-bg-secondary); border: 1px solid var(--color-border-secondary); border-radius: var(--radius-full); padding: 2px; gap: 2px; }
+.view-toggle button { border: 0; background: transparent; border-radius: var(--radius-full); padding: 5px 14px; font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--color-text-tertiary); cursor: pointer; font-family: var(--font-body); }
+.view-toggle button.is-active { background: var(--color-bg-primary); color: var(--color-text-primary); box-shadow: var(--shadow-xs); }
+.view-toggle button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.leads-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.lead-card { background: var(--color-bg-primary); border: 1px solid var(--color-border-secondary); border-radius: var(--radius-xl); padding: 16px; box-shadow: var(--shadow-xs); display: flex; flex-direction: column; gap: 8px; }
+.lead-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.lead-card__name { font-weight: var(--font-semibold); color: var(--color-text-primary); line-height: 1.25; }
+.lead-card__site { font-size: var(--text-xs); display: block; margin-top: 2px; }
+.lead-card__tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.lead-card__dec { font-size: var(--text-sm); color: var(--color-text-secondary); }
+.lead-card__email { font-size: var(--text-xs); overflow-wrap: anywhere; }
+.lead-card__actions { display: flex; gap: 6px; margin-top: 2px; }
+.lead-card.lead-row--hot { background: color-mix(in srgb, var(--color-utility-green-500) 6%, var(--color-bg-primary)); }
+.lead-card.lead-row--warm { background: color-mix(in srgb, var(--color-bg-brand-solid) 6%, var(--color-bg-primary)); }
+.lead-card.lead-row--mid { background: color-mix(in srgb, var(--color-utility-yellow-400) 9%, var(--color-bg-primary)); }
+
 /* Fundo da linha tingido pela cor do score */
 .data-table tbody tr.lead-row--hot  { background: color-mix(in srgb, var(--color-utility-green-500) 9%, transparent); }
 .data-table tbody tr.lead-row--warm { background: color-mix(in srgb, var(--color-bg-brand-solid) 8%, transparent); }

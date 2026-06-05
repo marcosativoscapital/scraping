@@ -79,6 +79,7 @@
   document.querySelectorAll('.nav-item').forEach((btn) => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
+      if (typeof closeLeadPage === 'function') closeLeadPage();
       document.querySelectorAll('.nav-item').forEach((b) => b.classList.toggle('is-active', b === btn));
       document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('is-active', p.dataset.panel === tab));
       document.getElementById('page-title').textContent = btn.textContent.trim();
@@ -232,6 +233,44 @@
   }
 
   // ====== LEADS ======
+  let _leadsView = localStorage.getItem('leadsView') || 'lista';
+  function renderLeadsCards(rows) {
+    const cont = document.getElementById('leads-cards');
+    if (!cont) return;
+    cont.innerHTML = rows.map((l) => `
+      <div class="lead-card ${scoreRowClass(l.score_icp)}" data-lead-id="${l.id}">
+        <div class="lead-card__head">
+          <div>
+            <div class="lead-card__name">${escapeHtml(l.empresa || '—')}</div>
+            ${l.site ? `<a class="lead-card__site muted" href="${l.site}" target="_blank">${escapeHtml(l.site.replace(/^https?:\/\//, ''))}</a>` : ''}
+          </div>
+          <span class="${scoreClass(l.score_icp)}">${l.score_icp ?? '—'}</span>
+        </div>
+        <div class="lead-card__tags">
+          <span class="badge badge--brand">${escapeHtml(verticalLabel(l.vertical))}</span>
+          ${l.recomendacao ? `<span class="badge">${escapeHtml(l.recomendacao)}</span>` : ''}
+        </div>
+        <div class="lead-card__dec">${l.decisor_nome ? escapeHtml(l.decisor_nome) + (l.decisor_cargo ? ' · ' + escapeHtml(l.decisor_cargo) : '') : '<span class="muted">sem decisor</span>'}</div>
+        ${l.email_provavel ? `<div class="lead-card__email muted">${escapeHtml(l.email_provavel)}</div>` : ''}
+        <div class="lead-card__actions">
+          <button class="chip-btn chip-btn--sm" data-action="detail" data-id="${l.id}">Ver</button>
+          ${l.score_icp >= 60 ? `<button class="chip-btn chip-btn--sm" data-action="outbound" data-id="${l.id}">Outbound</button>` : ''}
+        </div>
+      </div>`).join('') || '<div class="empty">Nenhum lead encontrado.</div>';
+  }
+  function applyLeadsView() {
+    const list = document.getElementById('leads-list');
+    const cards = document.getElementById('leads-cards');
+    if (list) list.hidden = _leadsView !== 'lista';
+    if (cards) cards.hidden = _leadsView !== 'cards';
+    document.querySelectorAll('#leads-view-toggle button').forEach((b) => b.classList.toggle('is-active', b.dataset.view === _leadsView));
+  }
+  function setLeadsView(v) { _leadsView = v; localStorage.setItem('leadsView', v); applyLeadsView(); }
+  (function bindLeadsViewToggle() {
+    const t = document.getElementById('leads-view-toggle');
+    if (t) t.addEventListener('click', (e) => { const b = e.target.closest('button[data-view]'); if (b) setLeadsView(b.dataset.view); });
+  })();
+
   async function loadLeads() {
     try {
       const vertical = document.getElementById('f-vertical').value;
@@ -287,8 +326,12 @@
       const upd = document.getElementById('leads-updated');
       if (upd) upd.textContent = 'Atualizado · ' + new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-      // Bind actions
-      tbody.querySelectorAll('button[data-action]').forEach((b) => {
+      // Cartões + visão atual (lista/cartões)
+      renderLeadsCards(rows);
+      applyLeadsView();
+
+      // Bind ações (tabela + cartões)
+      document.querySelector('.tab-panel[data-panel="leads"]').querySelectorAll('button[data-action]').forEach((b) => {
         b.addEventListener('click', () => {
           const id = b.dataset.id;
           if (b.dataset.action === 'detail') showLeadDetail(id);
