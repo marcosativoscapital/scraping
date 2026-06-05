@@ -384,9 +384,25 @@ code {
   padding: 12px 16px;
   border-bottom: 1px solid var(--color-border-secondary);
   vertical-align: middle;
+  overflow-wrap: anywhere;
 }
 .data-table tbody tr:hover { background: var(--color-bg-secondary); }
 .data-table tbody tr:last-child td { border-bottom: 0; }
+
+/* Leads: ações compactas empilhadas (cabem sem cortar) numa coluna estreita */
+.lead-actions { white-space: nowrap; width: 1%; }
+.row-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.chip-btn--sm { padding: 5px 10px; font-size: var(--text-xs); text-align: center; white-space: nowrap; }
+.data-table .badge { white-space: nowrap; }
+
+/* Fundo da linha tingido pela cor do score */
+.data-table tbody tr.lead-row--hot  { background: color-mix(in srgb, var(--color-utility-green-500) 9%, transparent); }
+.data-table tbody tr.lead-row--warm { background: color-mix(in srgb, var(--color-bg-brand-solid) 8%, transparent); }
+.data-table tbody tr.lead-row--mid  { background: color-mix(in srgb, var(--color-utility-yellow-400) 13%, transparent); }
+.data-table tbody tr.lead-row--hot:hover  { background: color-mix(in srgb, var(--color-utility-green-500) 17%, transparent); }
+.data-table tbody tr.lead-row--warm:hover { background: color-mix(in srgb, var(--color-bg-brand-solid) 15%, transparent); }
+.data-table tbody tr.lead-row--mid:hover  { background: color-mix(in srgb, var(--color-utility-yellow-400) 22%, transparent); }
+.data-table tbody tr.lead-row--cold:hover { background: var(--color-bg-secondary); }
 .table-foot {
   padding: 14px 24px;
   border-top: 1px solid var(--color-border-secondary);

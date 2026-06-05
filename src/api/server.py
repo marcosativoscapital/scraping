@@ -168,7 +168,9 @@ class MemberPayload(BaseModel):
 
 
 def _ws_public(w: dict) -> dict:
-    return {k: w.get(k) for k in ("id", "slug", "nome", "produto", "site", "descricao", "icp", "cor", "criado_em")}
+    out = {k: w.get(k) for k in ("id", "slug", "nome", "produto", "site", "descricao", "icp", "cor", "criado_em")}
+    out["verticais"] = _lead_payload(w.get("anamnese_json")).get("verticais_sugeridas") or []
+    return out
 
 
 def _docx_text(raw: bytes) -> str:
@@ -407,7 +409,15 @@ def db_lead_detail(lead_id: int, x_api_token: str | None = Header(default=None))
         outbound = c.execute(
             "SELECT * FROM outbound_messages WHERE lead_id=? ORDER BY canal", (lead_id,)
         ).fetchall()
-    return {"lead": dict(row), "outbound": [dict(o) for o in outbound]}
+    lead = dict(row)
+    payload = _lead_payload(lead.get("payload_json"))
+    return {
+        "lead": lead,
+        "outbound": [dict(o) for o in outbound],
+        "atividades": STORE.list_atividades(lead_id=lead_id, order="asc"),
+        "journey": payload.get("journey"),
+        "enrichment": payload.get("web_enrichment"),
+    }
 
 
 PIPELINE_STATUS_VALIDO = {"em_andamento", "ganho", "congelado", "perdido"}

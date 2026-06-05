@@ -52,6 +52,14 @@
     return 'badge';
   }
 
+  function scoreRowClass(score) {
+    const s = Number(score) || 0;
+    if (s >= 80) return 'lead-row lead-row--hot';
+    if (s >= 60) return 'lead-row lead-row--warm';
+    if (s >= 40) return 'lead-row lead-row--mid';
+    return 'lead-row lead-row--cold';
+  }
+
   function verticalLabel(v) {
     return {
       betting: 'Betting',
@@ -246,7 +254,7 @@
 
       const tbody = document.querySelector('#leads-table tbody');
       tbody.innerHTML = rows.map((l) => `
-        <tr data-lead-id="${l.id}">
+        <tr class="${scoreRowClass(l.score_icp)}" data-lead-id="${l.id}">
           <td><strong>${l.empresa || '—'}</strong>${l.site ? `<br><a href="${l.site}" target="_blank" class="muted">${l.site.replace(/^https?:\/\//, '')}</a>` : ''}</td>
           <td class="muted">${l.cnpj || '—'}</td>
           <td><span class="badge badge--brand">${verticalLabel(l.vertical)}</span></td>
@@ -254,9 +262,11 @@
           <td class="muted">${l.email_provavel || '—'}</td>
           <td><span class="${scoreClass(l.score_icp)}">${l.score_icp ?? '—'}</span></td>
           <td><span class="badge">${l.recomendacao || '—'}</span></td>
-          <td>
-            <button class="chip-btn" data-action="detail" data-id="${l.id}">Ver</button>
-            ${l.score_icp >= 60 ? `<button class="chip-btn" data-action="outbound" data-id="${l.id}">Outbound</button>` : ''}
+          <td class="lead-actions">
+            <div class="row-actions">
+              <button class="chip-btn chip-btn--sm" data-action="detail" data-id="${l.id}">Ver</button>
+              ${l.score_icp >= 60 ? `<button class="chip-btn chip-btn--sm" data-action="outbound" data-id="${l.id}">Outbound</button>` : ''}
+            </div>
           </td>
         </tr>
       `).join('') || '<tr><td colspan="8" class="empty">Nenhum lead encontrado.</td></tr>';
@@ -291,38 +301,145 @@
     }
   }
 
-  async function showLeadDetail(id) {
-    try {
-      const data = await api(`/db/leads/${id}`);
-      const lead = data.lead;
-      const fields = [
-        ['Empresa', lead.empresa],
-        ['Razão social', lead.razao_social],
-        ['CNPJ', lead.cnpj],
-        ['Vertical', verticalLabel(lead.vertical)],
-        ['Site', lead.site],
-        ['Porte', lead.porte_estimado],
-        ['Decisor', `${lead.decisor_nome || '—'} (${lead.decisor_cargo || '—'})`],
-        ['LinkedIn', lead.decisor_linkedin],
-        ['E-mail', lead.email_provavel],
-        ['Score ICP', lead.score_icp],
-        ['Recomendação', lead.recomendacao],
-        ['Gatilho', lead.gatilho_personalizado],
-        ['Observações', lead.observacoes],
-        ['Fonte', lead.fonte],
-        ['Atualizado em', fmtDate(lead.atualizado_em)],
-      ];
-      const html = `
-        <dl class="lead-detail">
-          ${fields.map(([k, v]) => `<div><strong>${k}:</strong> ${v || '—'}</div>`).join('')}
-        </dl>
-        <style>.lead-detail > div { padding: 6px 0; border-bottom: 1px solid var(--color-border-secondary); font-size: 13px; }</style>
-      `;
-      showModal('Detalhe do lead', html);
-    } catch (e) {
-      console.error(e);
-      toast('Erro ao carregar lead', 'error');
+  let _leadPageId = null;
+  function closeLeadPage() {
+    const el = document.getElementById('leadpage');
+    if (el) { el.hidden = true; el.innerHTML = ''; }
+    _leadPageId = null;
+  }
+  async function lpAction(act, id) {
+    if (act === 'back') return closeLeadPage();
+    if (act === 'nova-atv') return openNovaAtividade();
+    if (act === 'gen-ob') {
+      toast('Gerando outbound com Gemini…');
+      try { await api(`/outbound/generate/${id}`, { method: 'POST' }); showLeadDetail(id); }
+      catch (e) { toast('Erro: ' + e.message, 'error'); }
+      return;
     }
+    if (act === 'enrich') {
+      toast('Enriquecendo decisor via web…');
+      try { await api(`/enrichment/lead/${id}`, { method: 'POST' }); showLeadDetail(id); }
+      catch (e) { toast('Erro: ' + e.message, 'error'); }
+    }
+  }
+
+  async function showLeadDetail(id) {
+    let data;
+    try { data = await api(`/db/leads/${id}`); }
+    catch (e) { toast('Erro ao carregar lead', 'error'); return; }
+    _leadPageId = id;
+    const lead = data.lead || {};
+    const outbound = data.outbound || [];
+    const ats = data.atividades || [];
+    const enr = data.enrichment || {};
+    const journey = data.journey || null;
+
+    const obSent = outbound.filter((m) => m.status === 'enviado' || m.status === 'respondido').length;
+    const obReplied = outbound.filter((m) => m.status === 'respondido').length;
+    const atvDone = ats.filter((a) => a.status === 'executada').length;
+    const diasCriado = (() => { const d = new Date(lead.criado_em); return isNaN(d) ? '—' : Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000)) + 'd'; })();
+
+    const subj = {};
+    outbound.forEach((m) => { if (m.canal === 'email_subject') subj[m.lead_id] = m.mensagem; });
+    const obByChan = {};
+    outbound.forEach((m) => { if (m.canal !== 'email_subject') (obByChan[m.canal] = obByChan[m.canal] || []).push(m); });
+    const obHtml = OB_CHAN_ORDER.filter((ch) => obByChan[ch])
+      .map((ch) => obByChan[ch].map((m) => obChannelBlock(m, ch === 'email_body' ? subj[m.lead_id] : null)).join('')).join('');
+
+    const atvHtml = ats.length ? ats.map((a) => `
+      <div class="lp-atv">
+        <span class="lp-atv__when">${escapeHtml(fmtDate(a.inicio_em) || '—')}</span>
+        <div class="lp-atv__main"><span class="lp-atv__title">${escapeHtml(a.titulo || '—')}</span>
+          <span class="lp-atv__meta">${escapeHtml(a.tipo || a.natureza || '')}${a.cliente ? ' · ' + escapeHtml(a.cliente) : ''}</span></div>
+        <span class="badge ${a.status === 'executada' ? 'badge--success' : (a.status === 'atrasada' ? 'badge--warning' : '')}">${escapeHtml(a.status || '')}</span>
+      </div>`).join('') : '<div class="lp-empty">Nenhuma atividade ainda.</div>';
+
+    const info = (label, val) => (val ? `<div class="lp-info"><span>${label}</span><strong>${escapeHtml(String(val))}</strong></div>` : '');
+    const enrTriggers = (enr.gatilhos_recentes || []).slice(0, 4).map((g) => `<li>${escapeHtml(g)}</li>`).join('');
+
+    document.getElementById('leadpage').innerHTML = `
+      <div class="lp">
+        <header class="lp__top">
+          <button class="lp__back" data-lpact="back" aria-label="Voltar"><svg width="20" height="20"><use href="#i-chev-left"/></svg></button>
+          <div class="lp__title">
+            <h1>${escapeHtml(lead.empresa || 'Lead')}</h1>
+            <div class="lp__badges">
+              <span class="badge badge--brand">${escapeHtml(verticalLabel(lead.vertical))}</span>
+              <span class="${scoreClass(lead.score_icp)}">${lead.score_icp ?? '—'}</span>
+              ${lead.recomendacao ? `<span class="badge">${escapeHtml(lead.recomendacao)}</span>` : ''}
+            </div>
+          </div>
+          <div class="lp__actions">
+            <button class="btn btn--secondary" data-lpact="nova-atv"><svg width="16" height="16"><use href="#i-plus"/></svg> Nova atividade</button>
+            <button class="btn btn--primary" data-lpact="gen-ob"><svg width="16" height="16"><use href="#i-zap"/></svg> Gerar outbound</button>
+          </div>
+        </header>
+
+        <div class="lp__kpis">
+          <div class="lp-kpi"><span class="lp-kpi__v">${lead.score_icp ?? '—'}</span><span class="lp-kpi__l">Score ICP</span></div>
+          <div class="lp-kpi"><span class="lp-kpi__v">${atvDone}/${ats.length}</span><span class="lp-kpi__l">Atividades feitas</span></div>
+          <div class="lp-kpi"><span class="lp-kpi__v">${obSent}</span><span class="lp-kpi__l">Outbound enviados</span></div>
+          <div class="lp-kpi"><span class="lp-kpi__v">${obReplied}</span><span class="lp-kpi__l">Respostas</span></div>
+          <div class="lp-kpi"><span class="lp-kpi__v">${diasCriado}</span><span class="lp-kpi__l">Na base há</span></div>
+        </div>
+
+        <div class="lp__grid">
+          <aside class="lp__side">
+            <div class="lp-card"><h3>Dados da empresa</h3>
+              ${info('Razão social', lead.razao_social)}${info('CNPJ', lead.cnpj)}
+              ${lead.site ? `<div class="lp-info"><span>Site</span><a href="${lead.site}" target="_blank">${escapeHtml(lead.site.replace(/^https?:\/\//, ''))}</a></div>` : ''}
+              ${info('Telefone', lead.telefone)}${info('E-mail', lead.email_provavel)}${info('Porte', lead.porte_estimado)}
+            </div>
+            <div class="lp-card"><h3>Qualificação</h3>
+              ${info('Score ICP', lead.score_icp)}${info('Recomendação', lead.recomendacao)}${info('Gatilho', lead.gatilho_personalizado)}${info('Observações', lead.observacoes)}
+            </div>
+            ${(enr.vendor_comunicacao_atual || enrTriggers || enr.oportunidade_resumida) ? `
+            <div class="lp-card"><h3>Enriquecimento</h3>
+              ${info('Vendor atual', enr.vendor_comunicacao_atual)}
+              ${enr.oportunidade_resumida ? `<div class="lp-info lp-info--col"><span>Oportunidade</span><p>${escapeHtml(enr.oportunidade_resumida)}</p></div>` : ''}
+              ${enrTriggers ? `<div class="lp-info lp-info--col"><span>Gatilhos recentes</span><ul>${enrTriggers}</ul></div>` : ''}
+            </div>` : ''}
+          </aside>
+
+          <main class="lp__main">
+            <section class="lp-card">
+              <div class="lp-card__head"><h3>Jornada de contato ideal</h3>
+                <button class="btn btn--secondary btn--sm" data-journey="${id}">${journey ? 'Regenerar' : 'Gerar jornada'}</button></div>
+              <div class="ob-journey__body" id="journey-body-${id}">${journey ? '' : '<div class="ob-journey__hint">A IA monta como falar, os canais e o passo a passo deste lead.</div>'}</div>
+            </section>
+            <section class="lp-card">
+              <div class="lp-card__head"><h3>Outbound</h3>
+                <button class="btn btn--secondary btn--sm" data-lpact="gen-ob">${obHtml ? 'Regenerar' : 'Gerar'}</button></div>
+              <div class="ob-channels">${obHtml || '<div class="lp-empty">Nenhuma mensagem gerada ainda.</div>'}</div>
+            </section>
+            <section class="lp-card">
+              <div class="lp-card__head"><h3>Atividades</h3>
+                <button class="btn btn--secondary btn--sm" data-lpact="nova-atv">Nova</button></div>
+              <div class="lp-atvs">${atvHtml}</div>
+            </section>
+          </main>
+
+          <aside class="lp__contact">
+            <div class="lp-card"><h3>Contato</h3>
+              ${lead.decisor_nome ? `
+                <div class="lp-contact">
+                  <div class="lp-contact__avatar">${escapeHtml(initials(lead.decisor_nome))}</div>
+                  <div><div class="lp-contact__name">${escapeHtml(lead.decisor_nome)}</div><div class="lp-contact__role">${escapeHtml(lead.decisor_cargo || '')}</div></div>
+                </div>
+                ${info('E-mail', lead.email_provavel)}${info('Telefone', lead.telefone)}
+                ${lead.decisor_linkedin ? `<div class="lp-info"><span>LinkedIn</span><a href="${lead.decisor_linkedin}" target="_blank">perfil</a></div>` : ''}
+              ` : '<div class="lp-empty">Decisor não enriquecido. <button class="btn btn--secondary btn--sm" data-lpact="enrich">Enriquecer</button></div>'}
+            </div>
+          </aside>
+        </div>
+      </div>`;
+    const el = document.getElementById('leadpage');
+    el.hidden = false;
+    el.scrollTop = 0;
+    el.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => obAction(b.dataset.act, b.dataset.id)));
+    el.querySelectorAll('[data-journey]').forEach((b) => b.addEventListener('click', () => genJourney(b.dataset.journey)));
+    el.querySelectorAll('[data-lpact]').forEach((b) => b.addEventListener('click', () => lpAction(b.dataset.lpact, id)));
+    if (journey) renderJourney(id, journey);
   }
 
   async function triggerOutbound(id) {
@@ -350,51 +467,75 @@
   }
 
   // ====== MONITOR ======
-  document.querySelectorAll('[data-monitor]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const v = btn.dataset.monitor;
-      btn.disabled = true;
-      btn.textContent = `Verificando ${verticalLabel(v)}...`;
-      const result = document.getElementById('monitor-result');
-      result.innerHTML = '<div class="empty">Coletando, parseando e comparando snapshots... pode levar até 1 minuto.</div>';
-      try {
-        const data = await api(`/monitor/${v}`, { method: 'POST' });
-        let html = `<div class="monitor-block">
-          <div class="monitor-block__title">📊 ${verticalLabel(v)}</div>
-          Total atual: <strong>${data.total}</strong> · Snapshot anterior: <strong>${data.previous_total}</strong>
+  let _wsVerticais = [];
+
+  async function runMonitor(v, btn) {
+    const label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = `Verificando ${verticalLabel(v)}...`; }
+    const result = document.getElementById('monitor-result');
+    if (result) result.innerHTML = '<div class="empty">Coletando, parseando e comparando snapshots... pode levar até 1 minuto.</div>';
+    try {
+      const data = await api(`/monitor/${v}`, { method: 'POST' });
+      let html = `<div class="monitor-block">
+        <div class="monitor-block__title">📊 ${verticalLabel(v)}</div>
+        Total atual: <strong>${data.total}</strong> · Snapshot anterior: <strong>${data.previous_total}</strong>
+      </div>`;
+      if (data.novas?.length) {
+        html += `<div class="monitor-block monitor-block--success">
+          <div class="monitor-block__title">🆕 ${data.novas.length} nova(s) empresa(s)</div>
+          <ul>${data.novas.slice(0, 20).map((e) => `<li>${e.empresa || '?'} ${e.cnpj ? `· ${e.cnpj}` : ''}</li>`).join('')}</ul>
         </div>`;
-        if (data.novas?.length) {
-          html += `<div class="monitor-block monitor-block--success">
-            <div class="monitor-block__title">🆕 ${data.novas.length} nova(s) empresa(s)</div>
-            <ul>${data.novas.slice(0, 20).map((e) => `<li>${e.empresa || '?'} ${e.cnpj ? `· ${e.cnpj}` : ''}</li>`).join('')}</ul>
-          </div>`;
-        }
-        if (data.sumiram?.length) {
-          html += `<div class="monitor-block monitor-block--warning">
-            <div class="monitor-block__title">⚠️ ${data.sumiram.length} sumiram</div>
-            <ul>${data.sumiram.slice(0, 10).map((e) => `<li>${e.empresa || '?'}</li>`).join('')}</ul>
-          </div>`;
-        }
-        if (data.mudancas_status?.length) {
-          html += `<div class="monitor-block monitor-block--warning">
-            <div class="monitor-block__title">🔄 ${data.mudancas_status.length} mudança(s) de status</div>
-            <ul>${data.mudancas_status.map((m) => `<li>${m.empresa}: ${m.status_anterior} → ${m.status_atual}</li>`).join('')}</ul>
-          </div>`;
-        }
-        if (!data.novas?.length && !data.sumiram?.length && !data.mudancas_status?.length) {
-          html += `<div class="monitor-block">Nenhuma mudança desde o último snapshot.</div>`;
-        }
-        result.innerHTML = html;
-        toast('Monitor concluído', 'success');
-      } catch (e) {
-        result.innerHTML = `<div class="monitor-block monitor-block--warning">Erro: ${e.message}</div>`;
-        toast(`Erro: ${e.message}`, 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = `Verificar ${verticalLabel(v)}`;
       }
+      if (data.sumiram?.length) {
+        html += `<div class="monitor-block monitor-block--warning">
+          <div class="monitor-block__title">⚠️ ${data.sumiram.length} sumiram</div>
+          <ul>${data.sumiram.slice(0, 10).map((e) => `<li>${e.empresa || '?'}</li>`).join('')}</ul>
+        </div>`;
+      }
+      if (data.mudancas_status?.length) {
+        html += `<div class="monitor-block monitor-block--warning">
+          <div class="monitor-block__title">🔄 ${data.mudancas_status.length} mudança(s) de status</div>
+          <ul>${data.mudancas_status.map((m) => `<li>${m.empresa}: ${m.status_anterior} → ${m.status_atual}</li>`).join('')}</ul>
+        </div>`;
+      }
+      if (!data.novas?.length && !data.sumiram?.length && !data.mudancas_status?.length) {
+        html += `<div class="monitor-block">Nenhuma mudança desde o último snapshot.</div>`;
+      }
+      if (result) result.innerHTML = html;
+      toast('Monitor concluído', 'success');
+    } catch (e) {
+      if (result) result.innerHTML = `<div class="monitor-block monitor-block--warning">Erro: ${e.message}</div>`;
+      toast(`Erro: ${e.message}`, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+  }
+
+  const CPAAS_MONITORS = [['betting', 'Verificar bets'], ['pagamentos', 'IPs (Bacen)'], ['cobranca', 'Cobrança'], ['saas_b2b', 'SaaS']];
+  function renderMonitorChips() {
+    const cont = document.getElementById('monitor-chips');
+    if (!cont) return;
+    const isCpaas = String(localStorage.getItem('workspaceId') || '1') === '1';
+    if (isCpaas || !(_wsVerticais && _wsVerticais.length)) {
+      cont.innerHTML = CPAAS_MONITORS.map(([v, l]) => `<button class="chip-btn" data-monitor="${v}">${l}</button>`).join('');
+    } else {
+      cont.innerHTML = _wsVerticais.slice(0, 6).map((v) => {
+        const short = v.length > 26 ? v.slice(0, 24) + '…' : v;
+        return `<button class="chip-btn" data-monitor-vertical="${escapeHtml(v)}" title="${escapeHtml(v)}">${escapeHtml(short)}</button>`;
+      }).join('');
+    }
+  }
+  (function bindMonitorChips() {
+    const cont = document.getElementById('monitor-chips');
+    if (!cont) return;
+    cont.addEventListener('click', (e) => {
+      const fb = e.target.closest('[data-monitor]');
+      if (fb) return runMonitor(fb.dataset.monitor, fb);
+      const vb = e.target.closest('[data-monitor-vertical]');
+      if (vb) toast(`Coleta sob medida para "${vb.dataset.monitorVertical}" — em breve neste workspace.`);
     });
-  });
+    renderMonitorChips();
+  })();
 
   // ====== OUTBOUND PICKER ======
   async function loadOutboundOptions() {
@@ -610,7 +751,9 @@
         toast('Marcado como respondido', 'success');
       }
       if (act === 'aprovar' || act === 'rejeitar') toast('Atualizado', 'success');
-      loadOutboundQueue();
+      const lp = document.getElementById('leadpage');
+      if (_leadPageId && lp && !lp.hidden) showLeadDetail(_leadPageId);
+      else loadOutboundQueue();
     } catch (e) {
       toast('Erro: ' + e.message, 'error');
     }
@@ -1830,10 +1973,12 @@
       localStorage.setItem('workspaceId', w.id);
       localStorage.setItem('workspaceCor', w.cor);
       applyWorkspaceTheme(w.cor);
+      _wsVerticais = w.verticais || [];
       const nm = document.getElementById('ws-name'); if (nm) nm.textContent = w.nome;
       const dot = document.getElementById('ws-dot'); if (dot) dot.style.background = WS_CORES[w.cor] || WS_CORES.cpaas;
     }
     renderWsMenu();
+    renderMonitorChips();
   }
 
   function renderWsMenu() {

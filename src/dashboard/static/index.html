@@ -47,8 +47,7 @@
   <div class="login-gate" id="login-gate" hidden>
     <div class="login-card">
       <div class="login-card__brand">
-        <span class="brand-mark"><svg width="24" height="24"><use href="#i-logo"/></svg></span>
-        <span class="brand-name">Solve Scraper</span>
+        <img class="brand-logo brand-logo--lg" src="solvefy-leads.svg" alt="Solvefy Leads" />
       </div>
       <h1>Entrar</h1>
       <p>Acesse com sua conta Google da empresa.</p>
@@ -61,10 +60,7 @@
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar__brand">
-        <span class="brand-mark">
-          <svg width="22" height="22"><use href="#i-logo"/></svg>
-        </span>
-        <span class="brand-name">Solve Scraper</span>
+        <img class="brand-logo" src="solvefy-leads.svg" alt="Solvefy Leads" />
       </div>
 
       <div class="ws-switcher" id="ws-switcher">
@@ -300,10 +296,7 @@
             </div>
             <div class="monitor-strip__actions">
               <span class="monitor-strip__updated" id="leads-updated">—</span>
-              <button class="chip-btn" data-monitor="betting">Verificar bets</button>
-              <button class="chip-btn" data-monitor="pagamentos">IPs (Bacen)</button>
-              <button class="chip-btn" data-monitor="cobranca">Cobrança</button>
-              <button class="chip-btn" data-monitor="saas_b2b">SaaS</button>
+              <span class="monitor-chips" id="monitor-chips"></span>
               <span class="monitor-strip__sep" aria-hidden="true"></span>
               <button class="btn btn--secondary" id="btn-refresh">
                 <svg width="18" height="18"><use href="#i-zap"/></svg>
@@ -629,6 +622,7 @@
   <!-- Toast -->
   <div class="toast-wrap" id="toast-wrap"></div>
 
+  <div class="leadpage" id="leadpage" hidden></div>
   <script src="app.js?v=2"></script>
 </body>
 </html>

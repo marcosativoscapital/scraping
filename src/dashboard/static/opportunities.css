@@ -414,6 +414,7 @@
 .monitor-strip__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .monitor-strip__updated { font-size: var(--text-xs); color: var(--color-text-tertiary); margin-right: 4px; white-space: nowrap; }
 .monitor-strip__sep { width: 1px; height: 22px; background: var(--color-border-secondary); margin: 0 2px; }
+.monitor-chips { display: inline-flex; gap: 8px; flex-wrap: wrap; }
 
 /* ===== Workspace switcher + wizard ===== */
 .ws-switcher { position: relative; padding: 8px 12px 6px; }
@@ -449,6 +450,52 @@
 .ws-anamnese__sec { margin-bottom: 10px; font-size: var(--text-sm); }
 .ws-anamnese__sec strong { display: block; color: var(--color-text-primary); margin-bottom: 2px; }
 .ws-anamnese__sec ul { margin: 0; padding-left: 18px; color: var(--color-text-secondary); }
+
+/* Logo do sistema (Solvefy Leads) */
+.brand-logo { width: 100%; max-width: 180px; height: auto; display: block; }
+.brand-logo--lg { width: auto; max-width: 200px; height: 32px; margin: 0 auto 6px; }
+
+/* ===== Página do lead (tela cheia) ===== */
+.leadpage { position: fixed; inset: 0; z-index: 1500; background: var(--color-bg-secondary); overflow-y: auto; }
+.lp { max-width: 1280px; margin: 0 auto; padding: 0 24px 48px; }
+.lp__top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; padding: 16px 0; background: var(--color-bg-secondary); border-bottom: 1px solid var(--color-border-secondary); }
+.lp__back { width: 38px; height: 38px; flex-shrink: 0; display: grid; place-items: center; border-radius: var(--radius-md); border: 1px solid var(--color-border-secondary); background: var(--color-bg-primary); cursor: pointer; color: var(--color-text-secondary); }
+.lp__back:hover { border-color: var(--color-border-brand); }
+.lp__title { flex: 1; min-width: 0; }
+.lp__title h1 { font-family: var(--font-display); font-size: var(--text-display-xs); font-weight: var(--font-bold); margin: 0; color: var(--color-text-primary); line-height: 1.1; }
+.lp__badges { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.lp__actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+.lp__kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 16px 0; }
+@media (max-width: 900px) { .lp__kpis { grid-template-columns: repeat(2, 1fr); } }
+.lp-kpi { background: var(--color-bg-primary); border: 1px solid var(--color-border-secondary); border-radius: var(--radius-xl); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.lp-kpi__v { font-family: var(--font-display); font-size: var(--text-display-xs); font-weight: var(--font-bold); color: var(--color-text-primary); line-height: 1; }
+.lp-kpi__l { font-size: var(--text-xs); color: var(--color-text-tertiary); font-weight: var(--font-semibold); }
+.lp__grid { display: grid; grid-template-columns: 280px 1fr 280px; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .lp__grid { grid-template-columns: 1fr; } }
+.lp__side, .lp__main, .lp__contact { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.lp-card { background: var(--color-bg-primary); border: 1px solid var(--color-border-secondary); border-radius: var(--radius-xl); padding: 18px; box-shadow: var(--shadow-xs); }
+.lp-card h3 { font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--color-text-primary); margin: 0 0 12px; }
+.lp-card__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.lp-card__head h3 { margin: 0; }
+.lp-info { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--color-border-secondary); font-size: var(--text-sm); }
+.lp-info:last-child { border-bottom: 0; }
+.lp-info > span { color: var(--color-text-tertiary); flex-shrink: 0; }
+.lp-info strong, .lp-info a { color: var(--color-text-primary); font-weight: var(--font-semibold); text-align: right; overflow-wrap: anywhere; }
+.lp-info--col { flex-direction: column; gap: 4px; }
+.lp-info--col p, .lp-info--col ul { margin: 0; color: var(--color-text-secondary); font-weight: var(--font-regular, 400); text-align: left; font-size: var(--text-sm); }
+.lp-info--col ul { padding-left: 16px; }
+.lp-atvs { display: flex; flex-direction: column; }
+.lp-atv { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border-secondary); }
+.lp-atv:last-child { border-bottom: 0; }
+.lp-atv__when { font-size: var(--text-xs); color: var(--color-text-tertiary); width: 92px; flex-shrink: 0; }
+.lp-atv__main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lp-atv__title { font-weight: var(--font-semibold); font-size: var(--text-sm); color: var(--color-text-primary); }
+.lp-atv__meta { font-size: var(--text-xs); color: var(--color-text-tertiary); }
+.lp-empty { font-size: var(--text-sm); color: var(--color-text-tertiary); padding: 8px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lp-contact { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.lp-contact__avatar { width: 42px; height: 42px; border-radius: var(--radius-full); display: grid; place-items: center; background: var(--color-bg-brand-primary); color: var(--color-fg-brand-primary); font-family: var(--font-display); font-weight: var(--font-bold); flex-shrink: 0; }
+.lp-contact__name { font-weight: var(--font-semibold); color: var(--color-text-primary); }
+.lp-contact__role { font-size: var(--text-xs); color: var(--color-text-tertiary); }
 
 /* ---- Outbound: card por empresa + jornada + canais ---- */
 .ob-co {
