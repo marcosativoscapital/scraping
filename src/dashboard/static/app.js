@@ -376,13 +376,18 @@
       return;
     }
     if (act === 'exact') {
+      const btn = document.querySelector('.lp__actions [data-lpact="exact"]');
+      if (btn) { btn.disabled = true; btn.classList.add('is-loading'); btn.textContent = 'Enviando ao Spotter…'; }
       toast('Enviando ao Exact Spotter…');
       try {
         const res = await api(`/leads/${id}/exact`, { method: 'POST' });
-        if (res.ok) toast(res.dry_run ? 'Payload preparado (dry-run) — confira o log do servidor' : 'Lead enviado ao Exact Spotter', 'success');
-        else toast('Erro: ' + (res.erro || 'falha no envio'), 'error');
-        showLeadDetail(id);
-      } catch (e) { toast('Erro: ' + e.message, 'error'); }
+        if (res.ok && res.dry_run) toast('Modo dry-run: payload preparado, não enviado. Veja o log do servidor.', 'info');
+        else if (res.ok) toast(`✓ Lead criado no Exact Spotter${res.lead_id_exact ? ' · #' + res.lead_id_exact : ''}`, 'success');
+        else toast('✗ Falha no envio ao Spotter: ' + (res.erro || 'erro desconhecido'), 'error');
+      } catch (e) {
+        toast('✗ Erro ao enviar ao Spotter: ' + e.message, 'error');
+      }
+      showLeadDetail(id);
       return;
     }
     if (act === 'enrich') {
@@ -471,12 +476,12 @@
               <span class="badge badge--brand">${escapeHtml(verticalLabel(lead.vertical))}</span>
               <span class="${scoreClass(lead.score_icp)}">${lead.score_icp ?? '—'}</span>
               ${lead.recomendacao ? `<span class="badge">${escapeHtml(lead.recomendacao)}</span>` : ''}
-              ${exact ? `<span class="badge badge--success">Exact Spotter${exact.dry_run ? ' · dry-run' : ''}</span>` : ''}
+              ${exact ? `<span class="badge badge--success">Exact Spotter${exact.dry_run ? ' · dry-run' : (exact.lead_id_exact ? ' · #' + exact.lead_id_exact : ' ✓')}</span>` : ''}
             </div>
           </div>
           <div class="lp__actions">
             <button class="btn btn--secondary" data-lpact="nova-atv"><svg width="16" height="16"><use href="#i-plus"/></svg> Nova atividade</button>
-            <button class="btn btn--secondary" data-lpact="exact"><svg width="16" height="16"><use href="#i-send"/></svg> Enviar ao Spotter</button>
+            <button class="btn btn--secondary" data-lpact="exact"><svg width="16" height="16"><use href="#i-send"/></svg> ${exact ? 'Reenviar ao Spotter' : 'Enviar ao Spotter'}</button>
             <button class="btn btn--primary" data-lpact="gen-ob"><svg width="16" height="16"><use href="#i-zap"/></svg> Gerar outbound</button>
           </div>
         </header>
