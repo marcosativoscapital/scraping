@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Solve Scraper · Solvefy CPaaS</title>
   <link rel="stylesheet" href="tokens.css" />
-  <link rel="stylesheet" href="app.css?v=10" />
-  <link rel="stylesheet" href="opportunities.css?v=10" />
+  <link rel="stylesheet" href="app.css?v=11" />
+  <link rel="stylesheet" href="opportunities.css?v=11" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -147,35 +147,35 @@
               <p class="card__sub">O que precisa da sua atenção agora.</p>
             </div>
             <div class="bento">
-              <button class="hero-card" data-go="leads" aria-label="Abrir leads quentes">
-                <div class="hero-card__top">
-                  <span class="hero-card__tag">Prioridade do dia</span>
-                  <span class="hero-card__mark"><svg width="22" height="22"><use href="#i-target"/></svg></span>
-                </div>
-                <span class="hero-card__label">Quentes a contatar</span>
-                <span class="hero-card__value" id="ck-quentes">—</span>
-                <div class="hero-card__foot">
-                  <span id="hero-quentes-sub">Score ≥ 70 ainda sem contato</span>
-                  <span class="hero-card__cta">Abrir leads <svg width="15" height="15"><use href="#i-chev-right"/></svg></span>
+              <button class="hero-card hero-card--total" data-go="leads" aria-label="Ver todos os leads">
+                <div class="hero-card__headcol">
+                  <span class="hero-card__label">Total de Leads</span>
+                  <span class="hero-card__value" id="ck-total">—</span>
                 </div>
                 <div class="hero-spark" id="hero-spark"></div>
               </button>
 
+              <button class="hero-card hero-card--quentes" data-go="leads" aria-label="Abrir leads quentes">
+                <span class="hero-card__label">Leads Quentes</span>
+                <span class="hero-card__value" id="ck-quentes">—</span>
+                <div class="hero-card__foot">
+                  <span id="hero-quentes-sub">Score ≥ 70 ainda sem contato</span>
+                </div>
+              </button>
+
               <div class="score-card">
                 <div class="score-card__head">
-                  <span class="score-card__label">Taxa de resposta</span>
+                  <span class="score-card__label">Leads enriquecidos</span>
                 </div>
                 <div class="score-card__stage">
-                  <span class="score-card__ticks" aria-hidden="true"></span>
-                  <span class="score-card__value" id="ck-taxa">—</span>
-                  <div class="score-card__track"><span class="score-card__marker" id="taxa-marker"></span></div>
+                  <span class="score-card__value" id="ck-enriq">—</span>
                 </div>
               </div>
 
               <div class="mini-kpis">
                 <button class="mini-kpi" data-go="oportunidades">
                   <span class="mini-kpi__icon"><svg width="18" height="18"><use href="#i-clock"/></svg></span>
-                  <span class="mini-kpi__body"><span class="mini-kpi__v" id="ck-hoje">—</span><span class="mini-kpi__l">Atividades hoje</span></span>
+                  <span class="mini-kpi__body"><span class="mini-kpi__v" id="ck-hoje">—</span><span class="mini-kpi__l">Atividades para hoje</span></span>
                 </button>
                 <button class="mini-kpi mini-kpi--alert" data-go="oportunidades">
                   <span class="mini-kpi__icon"><svg width="18" height="18"><use href="#i-flag"/></svg></span>
@@ -669,6 +669,6 @@
   <div class="toast-wrap" id="toast-wrap"></div>
 
   <div class="leadpage" id="leadpage" hidden></div>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

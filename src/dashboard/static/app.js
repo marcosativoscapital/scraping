@@ -167,6 +167,9 @@
     try {
       const stats = await api('/stats');
       document.getElementById('m-total').textContent = stats.total.toLocaleString('pt-BR');
+      const ckTotal = document.getElementById('ck-total'); if (ckTotal) ckTotal.textContent = (stats.total || 0).toLocaleString('pt-BR');
+      const enrPct = stats.total ? Math.round((stats.enriquecidos || 0) / stats.total * 100) : 0;
+      const ckEnriq = document.getElementById('ck-enriq'); if (ckEnriq) ckEnriq.textContent = enrPct + '%';
       const hot = (stats.score_buckets.q80 || 0) + (stats.score_buckets.q60 || 0);
       document.getElementById('m-hot').textContent = hot.toLocaleString('pt-BR');
       document.getElementById('m-hot-pct').textContent = stats.total ? `${((hot / stats.total) * 100).toFixed(1)}% do total` : '—';

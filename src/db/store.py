@@ -340,8 +340,12 @@ class Store:
             ultimos = c.execute(
                 "SELECT vertical, empresa, score_icp, criado_em FROM leads ORDER BY criado_em DESC LIMIT 10"
             ).fetchall()
+            enriquecidos = c.execute(
+                "SELECT COUNT(*) AS n FROM leads WHERE decisor_nome IS NOT NULL AND TRIM(decisor_nome) <> ''"
+            ).fetchone()["n"]
             return {
                 "total": total,
+                "enriquecidos": enriquecidos,
                 "por_vertical": por_vertical,
                 "por_recomendacao": por_rec,
                 "score_buckets": dict(score_buckets) if score_buckets else {},
