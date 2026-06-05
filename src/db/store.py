@@ -340,11 +340,12 @@ class Store:
             ultimos = c.execute(
                 "SELECT vertical, empresa, score_icp, criado_em FROM leads ORDER BY criado_em DESC LIMIT 10"
             ).fetchall()
-            # "enriquecido" = lead com contato/decisor E pelo menos uma mensagem de outbound
+            # "enriquecido" = lead que já tem decisor e/ou contato (e-mail ou telefone)
             enriquecidos = c.execute(
-                """SELECT COUNT(*) AS n FROM leads l
-                   WHERE l.decisor_nome IS NOT NULL AND TRIM(l.decisor_nome) <> ''
-                     AND EXISTS (SELECT 1 FROM outbound_messages o WHERE o.lead_id = l.id)"""
+                """SELECT COUNT(*) AS n FROM leads
+                   WHERE (decisor_nome IS NOT NULL AND TRIM(decisor_nome) <> '')
+                      OR (email_provavel IS NOT NULL AND TRIM(email_provavel) <> '')
+                      OR (telefone IS NOT NULL AND TRIM(telefone) <> '')"""
             ).fetchone()["n"]
             return {
                 "total": total,
