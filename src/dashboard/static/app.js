@@ -16,6 +16,7 @@
       headers: {
         'Content-Type': 'application/json',
         'X-API-Token': API_TOKEN,
+        'X-Workspace-Id': localStorage.getItem('workspaceId') || '1',
         ...(opts.headers || {}),
       },
     });
@@ -1791,7 +1792,162 @@
   }
 
   // ====== AUTH (login Google, com fallback ao token) ======
+  // ====== WORKSPACES (multi-tenant) ======
+  const WS_CORES = {
+    solvefy: '#00df71', admin: '#e33b3b', crm: '#e1611c', ads: '#f0a800', marketing: '#e64499',
+    conversation: '#a257d1', cpaas: '#9c7bff', cloud: '#00cbff', agents: '#6487c4', clila: '#aca468',
+  };
+  const WS_CORES_LABEL = {
+    solvefy: 'Verde', admin: 'Vermelho', crm: 'Laranja', ads: 'Âmbar', marketing: 'Rosa',
+    conversation: 'Roxo', cpaas: 'Violeta', cloud: 'Ciano', agents: 'Azul', clila: 'Oliva',
+  };
+  let _wsList = [];
+  let _wsBound = false;
+
+  function applyWorkspaceTheme(cor) {
+    const root = document.documentElement;
+    [...root.classList].forEach((c) => { if (c.indexOf('brand-') === 0) root.classList.remove(c); });
+    root.classList.add('brand-' + (WS_CORES[cor] ? cor : 'cpaas'));
+  }
+
+  async function loadWorkspaces() {
+    if (!_wsBound) {
+      _wsBound = true;
+      const btn = document.getElementById('ws-switcher-btn');
+      if (btn) btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const m = document.getElementById('ws-menu'); if (m) m.hidden = !m.hidden;
+      });
+      document.addEventListener('click', (e) => {
+        const s = document.getElementById('ws-switcher'); const m = document.getElementById('ws-menu');
+        if (s && m && !s.contains(e.target)) m.hidden = true;
+      });
+    }
+    try { _wsList = (await api('/workspaces')).workspaces || []; } catch (e) { _wsList = []; }
+    const cur = localStorage.getItem('workspaceId') || '1';
+    const w = _wsList.find((x) => String(x.id) === String(cur)) || _wsList[0];
+    if (w) {
+      localStorage.setItem('workspaceId', w.id);
+      localStorage.setItem('workspaceCor', w.cor);
+      applyWorkspaceTheme(w.cor);
+      const nm = document.getElementById('ws-name'); if (nm) nm.textContent = w.nome;
+      const dot = document.getElementById('ws-dot'); if (dot) dot.style.background = WS_CORES[w.cor] || WS_CORES.cpaas;
+    }
+    renderWsMenu();
+  }
+
+  function renderWsMenu() {
+    const menu = document.getElementById('ws-menu');
+    if (!menu) return;
+    const cur = localStorage.getItem('workspaceId') || '1';
+    menu.innerHTML = _wsList.map((w) => `
+      <button class="ws-menu__item${String(w.id) === String(cur) ? ' is-active' : ''}" data-ws="${w.id}" data-cor="${w.cor}">
+        <span class="ws-switcher__dot" style="background:${WS_CORES[w.cor] || WS_CORES.cpaas}"></span>
+        <span class="ws-menu__name">${escapeHtml(w.nome)}</span>
+        ${String(w.id) === String(cur) ? '<svg width="14" height="14"><use href="#i-check"/></svg>' : ''}
+      </button>`).join('') +
+      '<button class="ws-menu__item ws-menu__create" id="ws-create-btn"><span class="ws-menu__plus"><svg width="16" height="16"><use href="#i-plus"/></svg></span>Criar workspace</button>';
+    menu.querySelectorAll('[data-ws]').forEach((b) => b.addEventListener('click', () => switchWorkspace(b.dataset.ws, b.dataset.cor)));
+    const cb = document.getElementById('ws-create-btn');
+    if (cb) cb.addEventListener('click', () => { menu.hidden = true; openCreateWorkspace(); });
+  }
+
+  function switchWorkspace(id, cor) {
+    localStorage.setItem('workspaceId', id);
+    localStorage.setItem('workspaceCor', cor || 'cpaas');
+    location.reload();
+  }
+
+  function openCreateWorkspace() {
+    const swatches = Object.keys(WS_CORES).map((k) =>
+      `<button type="button" class="ws-swatch${k === 'cpaas' ? ' is-active' : ''}" data-cor="${k}" title="${WS_CORES_LABEL[k]}" style="--sw:${WS_CORES[k]}"></button>`).join('');
+    const html = `
+      <form id="ws-form" class="ws-form">
+        <label class="ws-field"><span>Nome do workspace</span><input class="input" name="nome" required placeholder="Ex.: Acme Cobrança"></label>
+        <label class="ws-field"><span>Para qual produto buscaremos lead?</span><input class="input" name="produto" placeholder="Ex.: Régua de cobrança multicanal"></label>
+        <label class="ws-field"><span>Site da empresa</span><input class="input" name="site" placeholder="https://"></label>
+        <div class="ws-field"><span>Descrição da empresa <button type="button" class="ws-upload" data-for="descricao_file"><svg width="14" height="14"><use href="#i-download"/></svg> anexar</button></span>
+          <textarea class="input" name="descricao" rows="3" placeholder="O que a empresa faz, proposta de valor…"></textarea>
+          <input type="file" id="f-descricao_file" hidden accept=".pdf,.txt,.docx,image/*"><span class="ws-file" id="fn-descricao_file"></span></div>
+        <div class="ws-field"><span>ICP — perfil de cliente ideal <button type="button" class="ws-upload" data-for="icp_file"><svg width="14" height="14"><use href="#i-download"/></svg> anexar</button></span>
+          <textarea class="input" name="icp" rows="3" placeholder="Quem é o cliente ideal: porte, setor, cargos, dores…"></textarea>
+          <input type="file" id="f-icp_file" hidden accept=".pdf,.txt,.docx,image/*"><span class="ws-file" id="fn-icp_file"></span></div>
+        <div class="ws-field"><span>Cor do workspace</span><div class="ws-swatches">${swatches}</div></div>
+        <div class="ws-field"><span>Convidar pessoas</span><div id="ws-members"></div>
+          <button type="button" class="chip-btn" id="ws-add-member">+ Adicionar pessoa</button></div>
+        <div class="ws-form__actions">
+          <button type="button" class="btn btn--secondary" id="ws-cancel">Cancelar</button>
+          <button type="submit" class="btn btn--primary" id="ws-submit"><svg width="16" height="16"><use href="#i-zap"/></svg> Criar + analisar (Gemini)</button>
+        </div>
+        <div class="ws-anamnese" id="ws-anamnese" hidden></div>
+      </form>`;
+    showModal('Novo workspace', html);
+    let cor = 'cpaas';
+    document.querySelectorAll('.ws-swatch').forEach((s) => s.addEventListener('click', () => {
+      document.querySelectorAll('.ws-swatch').forEach((x) => x.classList.remove('is-active'));
+      s.classList.add('is-active'); cor = s.dataset.cor;
+    }));
+    document.querySelectorAll('.ws-upload').forEach((b) => b.addEventListener('click', () => document.getElementById('f-' + b.dataset.for).click()));
+    ['descricao_file', 'icp_file'].forEach((id) => {
+      const inp = document.getElementById('f-' + id);
+      inp.addEventListener('change', () => { document.getElementById('fn-' + id).textContent = inp.files[0] ? inp.files[0].name : ''; });
+    });
+    document.getElementById('ws-add-member').addEventListener('click', () => {
+      const row = document.createElement('div'); row.className = 'ws-member-row';
+      row.innerHTML = '<input class="input" type="email" placeholder="email@empresa.com"><select class="input"><option value="leitor">Leitor</option><option value="editor">Editor</option><option value="admin">Admin</option></select><button type="button" class="ws-member-rm" aria-label="Remover">×</button>';
+      row.querySelector('.ws-member-rm').addEventListener('click', () => row.remove());
+      document.getElementById('ws-members').appendChild(row);
+    });
+    document.getElementById('ws-cancel').addEventListener('click', closeModal);
+    document.getElementById('ws-form').addEventListener('submit', (e) => { e.preventDefault(); submitCreateWorkspace(cor); });
+  }
+
+  async function submitCreateWorkspace(cor) {
+    const form = document.getElementById('ws-form');
+    if (!form.nome.value.trim()) { toast('Dê um nome ao workspace', 'error'); return; }
+    const fd = new FormData();
+    fd.append('nome', form.nome.value.trim());
+    fd.append('produto', form.produto.value.trim());
+    fd.append('site', form.site.value.trim());
+    fd.append('descricao', form.descricao.value.trim());
+    fd.append('icp', form.icp.value.trim());
+    fd.append('cor', cor);
+    const membros = [...document.querySelectorAll('.ws-member-row')].map((r) => ({
+      email: r.querySelector('input').value.trim(), role: r.querySelector('select').value,
+    })).filter((m) => m.email);
+    fd.append('membros', JSON.stringify(membros));
+    const df = document.getElementById('f-descricao_file').files[0]; if (df) fd.append('descricao_file', df);
+    const icf = document.getElementById('f-icp_file').files[0]; if (icf) fd.append('icp_file', icf);
+    const btn = document.getElementById('ws-submit'); btn.disabled = true; btn.textContent = 'Analisando com Gemini…';
+    try {
+      const res = await fetch(`${API_URL}/workspaces`, { method: 'POST', headers: { 'X-API-Token': API_TOKEN }, body: fd });
+      if (!res.ok) throw new Error(await res.text());
+      renderAnamnese(await res.json());
+    } catch (e) {
+      toast('Erro ao criar workspace: ' + e.message, 'error');
+      btn.disabled = false; btn.innerHTML = 'Criar + analisar (Gemini)';
+    }
+  }
+
+  function renderAnamnese(data) {
+    const w = data.workspace || {}; const a = data.anamnese || {};
+    const box = document.getElementById('ws-anamnese'); if (!box) return;
+    const list = (arr) => (arr || []).map((x) => `<li>${escapeHtml(x)}</li>`).join('');
+    box.innerHTML = `
+      <div class="ws-anamnese__head">Workspace "${escapeHtml(w.nome || '')}" criado — direcionamentos do Gemini</div>
+      ${a.resumo ? `<p class="ws-anamnese__resumo">${escapeHtml(a.resumo)}</p>` : ''}
+      ${(a.verticais_sugeridas || []).length ? `<div class="ws-anamnese__sec"><strong>Verticais sugeridas</strong><ul>${list(a.verticais_sugeridas)}</ul></div>` : ''}
+      ${(a.canais || []).length ? `<div class="ws-anamnese__sec"><strong>Canais</strong><ul>${list(a.canais)}</ul></div>` : ''}
+      ${(a.primeiros_passos || []).length ? `<div class="ws-anamnese__sec"><strong>Primeiros passos</strong><ul>${list(a.primeiros_passos)}</ul></div>` : ''}
+      <div class="ws-form__actions"><button type="button" class="btn btn--primary" id="ws-enter">Entrar no workspace</button></div>`;
+    box.hidden = false;
+    document.getElementById('ws-enter').addEventListener('click', () => switchWorkspace(w.id, w.cor));
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   function enterApp() {
+    applyWorkspaceTheme(localStorage.getItem('workspaceCor') || 'cpaas');
+    loadWorkspaces();
     checkHealth();
     loadOverview();
     loadReminders();

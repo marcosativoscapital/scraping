@@ -197,6 +197,39 @@ class GeminiClient:
             logger.error("Falha ao parsear JSON do Gemini: %s\nTexto: %s", e, text[:500])
             raise
 
+    def call_with_files(self, prompt: str, files: list[tuple[bytes, str]], system: str | None = None) -> "_ResponseShim":
+        """Como call(), mas anexa arquivos (Gemini lê PDF/imagens nativamente).
+
+        files: lista de (bytes, mime_type). Força saída JSON (application/json).
+        """
+        parts: list[Any] = []
+        for data, mime in files:
+            try:
+                parts.append(types.Part.from_bytes(data=data, mime_type=mime))
+            except Exception as e:  # anexo problemático não derruba a anamnese
+                logger.warning("Anexo ignorado (%s): %s", mime, e)
+        parts.append(types.Part.from_text(text=prompt))
+
+        cfg_kwargs: dict[str, Any] = {
+            "temperature": 0.0,
+            "max_output_tokens": self.max_tokens,
+            "response_mime_type": "application/json",
+        }
+        if system:
+            cfg_kwargs["system_instruction"] = system
+        if "2.5-flash" in self.model or "2.5-pro" in self.model:
+            try:
+                cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+            except Exception:
+                pass
+
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=parts,
+            config=types.GenerateContentConfig(**cfg_kwargs),
+        )
+        return _ResponseShim(response)
+
     def stats(self) -> dict[str, int]:
         return self._stats.as_dict()
 

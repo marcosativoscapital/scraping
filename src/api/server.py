@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextvars
 import csv
 import io
+import json
 import logging
 import os
 import threading
@@ -13,7 +15,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +26,8 @@ from ..claude_agent.client import GeminiClient
 from ..claude_agent.personalize import generate_trigger
 from ..claude_agent.scorer import score_lead
 from ..db.store import Store
+from ..workspaces.control import ControlStore
+from ..workspaces.anamnese import analyze_anamnese
 from ..enrichers.brasil_api import enrich_with_cnpj
 from ..integrations.intercom import push_lead_to_intercom
 from ..jobs.monitor import run_monitor
@@ -64,9 +68,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def _workspace_context(request, call_next):
+    """Define o workspace ativo a partir do header X-Workspace-Id (default #1)."""
+    tok = _CURRENT_WS.set(request.headers.get("x-workspace-id") or "1")
+    try:
+        return await call_next(request)
+    finally:
+        _CURRENT_WS.reset(tok)
+
+
 # ====== STATE ======
 JOBS: dict[str, dict[str, Any]] = {}
-STORE = Store()
+
+# Multi-tenant: cada workspace tem seu próprio banco. O STORE é um proxy que resolve
+# o Store do workspace atual (header X-Workspace-Id) por requisição. Auth/sessões são
+# globais e sempre usam o workspace #1 (AUTH_STORE).
+CONTROL = ControlStore()
+AUTH_STORE = CONTROL.get_data_store(1)
+_CURRENT_WS: "contextvars.ContextVar[str]" = contextvars.ContextVar("ws_id", default="1")
+
+
+class _WorkspaceStoreProxy:
+    """Delega cada acesso para o Store do workspace atual."""
+
+    def __getattr__(self, name):
+        return getattr(CONTROL.get_data_store(_CURRENT_WS.get()), name)
+
+
+STORE = _WorkspaceStoreProxy()
+
+
+def ws_store(x_workspace_id: str | None = None) -> Store:
+    """Store do workspace indicado (ou do contexto atual)."""
+    return CONTROL.get_data_store(x_workspace_id if x_workspace_id is not None else _CURRENT_WS.get())
+
+
 SCHED = Scheduler()
 SDR = SDRQueue(STORE)
 
@@ -75,7 +113,7 @@ SDR = SDRQueue(STORE)
 def _auth(token: str | None) -> None:
     if token == API_TOKEN:
         return
-    if STORE.get_session(token):
+    if AUTH_STORE.get_session(token):
         return
     raise HTTPException(status_code=401, detail="Token inválido")
 
@@ -83,7 +121,7 @@ def _auth(token: str | None) -> None:
 def current_user(token: str | None) -> Optional[dict]:
     """Usuário da sessão Google (ou None se for o token único/extensão)."""
     if token and token != API_TOKEN:
-        return STORE.get_session(token)
+        return AUTH_STORE.get_session(token)
     return None
 
 
@@ -102,8 +140,8 @@ def auth_google(payload: GoogleAuthPayload):
     res = verify_google_id_token(payload.credential)
     if not res.get("ok"):
         raise HTTPException(401, res.get("erro") or "falha no login Google")
-    token = STORE.create_session(res["email"], res.get("nome"))
-    STORE.log_event("login", {"email": res["email"], "via": "google"})
+    token = AUTH_STORE.create_session(res["email"], res.get("nome"))
+    AUTH_STORE.log_event("login", {"email": res["email"], "via": "google"})
     return {"ok": True, "token": token, "email": res["email"], "nome": res.get("nome")}
 
 
@@ -119,8 +157,126 @@ def auth_me(x_api_token: Optional[str] = Header(default=None)):
 
 @app.post("/auth/logout")
 def auth_logout(x_api_token: Optional[str] = Header(default=None)):
-    STORE.delete_session(x_api_token)
+    AUTH_STORE.delete_session(x_api_token)
     return {"ok": True}
+
+
+# ====== WORKSPACES (multi-tenant) ======
+class MemberPayload(BaseModel):
+    email: str
+    role: str = "leitor"
+
+
+def _ws_public(w: dict) -> dict:
+    return {k: w.get(k) for k in ("id", "slug", "nome", "produto", "site", "descricao", "icp", "cor", "criado_em")}
+
+
+def _docx_text(raw: bytes) -> str:
+    try:
+        from docx import Document  # python-docx (opcional)
+        return "\n".join(p.text for p in Document(io.BytesIO(raw)).paragraphs)
+    except Exception:
+        return ""
+
+
+@app.get("/workspaces")
+def workspaces_list(x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    email = (current_user(x_api_token) or {}).get("email")
+    wss = CONTROL.list_workspaces(email) if email else CONTROL.list_workspaces()
+    out = []
+    for w in wss:
+        item = _ws_public(w)
+        item["role"] = CONTROL.role_of(w["id"], email) or "admin"  # dev/sem login = admin
+        out.append(item)
+    return {"workspaces": out}
+
+
+@app.get("/workspaces/{ws_id:int}")
+def workspaces_get(ws_id: int, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    w = CONTROL.get_workspace(ws_id)
+    if not w:
+        raise HTTPException(404, "Workspace não encontrado")
+    anamnese = json.loads(w["anamnese_json"]) if w.get("anamnese_json") else None
+    return {"workspace": _ws_public(w), "anamnese": anamnese, "membros": CONTROL.list_members(ws_id)}
+
+
+@app.post("/workspaces")
+async def workspaces_create(
+    nome: str = Form(...),
+    produto: str = Form(""),
+    site: str = Form(""),
+    descricao: str = Form(""),
+    icp: str = Form(""),
+    cor: str = Form("cpaas"),
+    membros: str = Form("[]"),
+    descricao_file: Optional[UploadFile] = File(None),
+    icp_file: Optional[UploadFile] = File(None),
+    x_api_token: Optional[str] = Header(default=None),
+):
+    _auth(x_api_token)
+    owner = (current_user(x_api_token) or {}).get("email")
+
+    anexos: list[tuple[bytes, str]] = []
+    extra: list[str] = []
+    for f in (descricao_file, icp_file):
+        if not f:
+            continue
+        raw = await f.read()
+        if not raw:
+            continue
+        mime = (f.content_type or "").lower()
+        name = (f.filename or "").lower()
+        if mime.startswith("text/") or name.endswith(".txt"):
+            extra.append(f"[{f.filename}]\n" + raw.decode("utf-8", "ignore")[:8000])
+        elif mime == "application/pdf" or name.endswith(".pdf") or mime.startswith("image/"):
+            anexos.append((raw, mime or "application/pdf"))
+        elif name.endswith(".docx"):
+            t = _docx_text(raw)
+            if t:
+                extra.append(f"[{f.filename}]\n" + t[:8000])
+
+    dados = {
+        "nome": nome, "produto": produto, "site": site,
+        "descricao": (descricao + (("\n\n" + "\n\n".join(extra)) if extra else "")).strip(),
+        "icp": icp,
+    }
+    try:
+        anamnese = analyze_anamnese(GeminiClient(), dados, anexos or None)
+    except Exception as e:
+        logger.exception("Anamnese falhou: %s", e)
+        anamnese = {"erro": str(e)}
+
+    try:
+        membros_list = json.loads(membros) if membros else []
+    except Exception:
+        membros_list = []
+
+    ws = CONTROL.create_workspace(
+        nome, produto=produto, site=site, descricao=descricao, icp=icp, cor=cor,
+        anamnese=anamnese, owner_email=owner, membros=membros_list,
+    )
+    try:
+        CONTROL.get_data_store(ws["id"]).log_event("workspace_created", {"id": ws["id"], "nome": nome})
+    except Exception:
+        pass
+    return {"ok": True, "workspace": _ws_public(ws), "anamnese": anamnese}
+
+
+@app.get("/workspaces/{ws_id:int}/members")
+def workspaces_members(ws_id: int, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    return {"membros": CONTROL.list_members(ws_id)}
+
+
+@app.post("/workspaces/{ws_id:int}/members")
+def workspaces_add_member(ws_id: int, payload: MemberPayload, x_api_token: Optional[str] = Header(default=None)):
+    _auth(x_api_token)
+    if not CONTROL.get_workspace(ws_id):
+        raise HTTPException(404, "Workspace não encontrado")
+    CONTROL.add_member(ws_id, payload.email, payload.role, status="invited")
+    return {"ok": True, "membros": CONTROL.list_members(ws_id)}
 
 
 # ====== MODELS ======
