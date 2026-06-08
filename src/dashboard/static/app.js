@@ -169,7 +169,7 @@
       document.getElementById('m-total').textContent = stats.total.toLocaleString('pt-BR');
       const ckTotal = document.getElementById('ck-total'); if (ckTotal) ckTotal.textContent = (stats.total || 0).toLocaleString('pt-BR');
       const enrPct = stats.total ? Math.round((stats.enriquecidos || 0) / stats.total * 100) : 0;
-      const ckEnriq = document.getElementById('ck-enriq'); if (ckEnriq) ckEnriq.textContent = enrPct + '%';
+      const ckEnriq = document.getElementById('ck-enriq'); if (ckEnriq) ckEnriq.innerHTML = `${enrPct}<span class="hero-card__pct">%</span>`;
       const hot = (stats.score_buckets.q80 || 0) + (stats.score_buckets.q60 || 0);
       document.getElementById('m-hot').textContent = hot.toLocaleString('pt-BR');
       document.getElementById('m-hot-pct').textContent = stats.total ? `${((hot / stats.total) * 100).toFixed(1)}% do total` : '—';
@@ -177,7 +177,7 @@
 
       // Hero "Quentes a contatar" — sub + mini-barras (tiers de score)
       const heroSub = document.getElementById('hero-quentes-sub');
-      if (heroSub) heroSub.textContent = `Score ≥ 70 · de ${(stats.total || 0).toLocaleString('pt-BR')} no total`;
+      if (heroSub) heroSub.textContent = 'Score ≥ 70';
       const spark = document.getElementById('hero-spark');
       if (spark) {
         const sb = stats.score_buckets || {};
