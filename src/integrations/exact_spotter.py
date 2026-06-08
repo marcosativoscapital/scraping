@@ -38,16 +38,27 @@ def _digits(s: Any) -> str:
     return re.sub(r"\D", "", str(s or ""))
 
 
-def build_lead_payload(lead: dict[str, Any]) -> dict[str, Any]:
-    """Mapeia um lead do Solve Scraper para o payload do endpoint POST /leadsAdd.
+def lead_link(base_url: str | None, ws_id: Any, lead_id: Any) -> str | None:
+    """URL de volta para a ficha do lead na plataforma Solvefy Leads."""
+    if not base_url or not lead_id:
+        return None
+    return f"{str(base_url).rstrip('/')}/dashboard/?ws={ws_id or 1}&lead={lead_id}"
 
-    Schema confirmado na doc V3: corpo é `{duplicityValidation, lead: {...}}`.
-    Só `lead.name` é obrigatório. O endpoint de inserção não recebe array de
-    contatos — por isso o decisor entra na `description`. (Contato pode virar
-    Person via endpoint próprio depois.)
+
+def build_lead_payload(
+    lead: dict[str, Any], *, base_url: str | None = None, ws_id: Any = None, sdr_email: str | None = None
+) -> dict[str, Any]:
+    """Mapeia um lead do Solvefy Leads para o payload do endpoint POST /leadsAdd.
+
+    Schema V3: corpo é `{duplicityValidation, lead: {...}}`. Só `lead.name` é
+    obrigatório. O endpoint não recebe array de contatos — decisor + link da ficha
+    entram na `description` (e o link também em `mktLink`). `sdrEmail` direciona o
+    lead a um pré-vendedor específico.
     """
     empresa = (lead.get("empresa") or lead.get("razao_social") or "").strip() or "Lead sem nome"
-    inner: dict[str, Any] = {"name": empresa, "source": "Solve Scraper"}
+    inner: dict[str, Any] = {"name": empresa, "source": "Solvefy Leads"}
+    if sdr_email and "@" in sdr_email:
+        inner["sdrEmail"] = sdr_email.strip()
     if lead.get("vertical"):
         inner["industry"] = str(lead["vertical"])
     if lead.get("site"):
@@ -60,7 +71,13 @@ def build_lead_payload(lead: dict[str, Any]) -> dict[str, Any]:
     if len(doc) in (11, 14):  # CPF/CNPJ completos; ignora placeholders (ex.: ...0001-XX)
         inner["cpfcnpj"] = doc
 
+    link = lead_link(base_url, ws_id, lead.get("id"))
+    if link:
+        inner["mktLink"] = link
+
     desc: list[str] = []
+    if link:
+        desc.append(f"Ficha no Solvefy Leads: {link}")
     if lead.get("decisor_nome"):
         d = str(lead["decisor_nome"])
         if lead.get("decisor_cargo"):
@@ -75,15 +92,18 @@ def build_lead_payload(lead: dict[str, Any]) -> dict[str, Any]:
     if lead.get("gatilho_personalizado"):
         desc.append(str(lead["gatilho_personalizado"]))
     if desc:
-        inner["description"] = " · ".join(desc)
+        inner["description"] = "\n".join(desc)
 
     return {"duplicityValidation": True, "lead": inner}
 
 
-def push_lead(lead: dict[str, Any], dry_run: bool | None = None) -> dict[str, Any]:
+def push_lead(
+    lead: dict[str, Any], dry_run: bool | None = None, *,
+    base_url: str | None = None, ws_id: Any = None, sdr_email: str | None = None,
+) -> dict[str, Any]:
     """Envia (ou simula) o lead ao Exact Spotter. Retorna {ok, dry_run, payload, ...}."""
     dry = _dry_run_default() if dry_run is None else dry_run
-    payload = build_lead_payload(lead)
+    payload = build_lead_payload(lead, base_url=base_url, ws_id=ws_id, sdr_email=sdr_email)
 
     if dry:
         logger.info("[exact_spotter dry-run] %s", json.dumps(payload, ensure_ascii=False))
@@ -117,7 +137,10 @@ def push_lead(lead: dict[str, Any], dry_run: bool | None = None) -> dict[str, An
         return {"ok": False, "dry_run": False, "erro": str(e), "payload": payload}
 
 
-def push_and_mark(lead_id: int, store: "Store | None" = None, dry_run: bool | None = None) -> dict[str, Any]:
+def push_and_mark(
+    lead_id: int, store: "Store | None" = None, dry_run: bool | None = None, *,
+    base_url: str | None = None, ws_id: Any = None, sdr_email: str | None = None,
+) -> dict[str, Any]:
     """Envia o lead ao Spotter e registra o status em payload_json['exact_spotter']."""
     store = store or Store()
     with store.conn() as c:
@@ -125,7 +148,7 @@ def push_and_mark(lead_id: int, store: "Store | None" = None, dry_run: bool | No
     if not row:
         return {"ok": False, "erro": f"lead {lead_id} não encontrado"}
     lead = dict(row)
-    res = push_lead(lead, dry_run=dry_run)
+    res = push_lead(lead, dry_run=dry_run, base_url=base_url, ws_id=ws_id, sdr_email=sdr_email)
     if res.get("ok"):
         with store.conn() as c:
             raw = lead.get("payload_json") or "{}"
@@ -134,6 +157,7 @@ def push_and_mark(lead_id: int, store: "Store | None" = None, dry_run: bool | No
                 "enviado_em": datetime.now().isoformat(timespec="seconds"),
                 "dry_run": bool(res.get("dry_run", True)),
                 "lead_id_exact": res.get("lead_id_exact"),
+                "sdr_email": (sdr_email or None),
             }
             c.execute(
                 "UPDATE leads SET payload_json=? WHERE id=?",

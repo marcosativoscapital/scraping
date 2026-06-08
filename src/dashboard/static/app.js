@@ -366,6 +366,37 @@
     if (el) { el.hidden = true; el.innerHTML = ''; }
     _leadPageId = null;
   }
+  function _exactSdrs() { try { return JSON.parse(localStorage.getItem('exactSdrs') || '[]'); } catch (e) { return []; } }
+  function _rememberSdr(email) { if (!email) return; const s = _exactSdrs().filter((x) => x !== email); s.unshift(email); localStorage.setItem('exactSdrs', JSON.stringify(s.slice(0, 8))); }
+  function openExactModal(id) {
+    const sdrs = _exactSdrs();
+    const html = `
+      <div class="disc-form">
+        <label class="ws-field"><span>SDR / pré-vendedor <small class="muted">(opcional — direciona o lead)</small></span>
+          <input class="input" id="exact-sdr" type="email" list="exact-sdr-list" placeholder="sdr@empresa.com" value="${escapeHtml(sdrs[0] || '')}">
+          <datalist id="exact-sdr-list">${sdrs.map((e) => `<option value="${escapeHtml(e)}">`).join('')}</datalist></label>
+        <p class="hint">Cria o lead no Exact Spotter (origem "Solvefy Leads") com link de volta pra ficha aqui. Informando o SDR, o lead já vai atribuído a ele.</p>
+        <div class="ws-form__actions">
+          <button type="button" class="btn btn--secondary" id="exact-cancel">Cancelar</button>
+          <button type="button" class="btn btn--primary" id="exact-go"><svg width="16" height="16"><use href="#i-send"/></svg> Enviar ao Spotter</button>
+        </div>
+      </div>`;
+    showModal('Enviar ao Exact Spotter', html);
+    document.getElementById('exact-cancel').addEventListener('click', closeModal);
+    document.getElementById('exact-go').addEventListener('click', async () => {
+      const sdr = document.getElementById('exact-sdr').value.trim();
+      const go = document.getElementById('exact-go'); go.disabled = true; go.textContent = 'Enviando…';
+      try {
+        const res = await api(`/leads/${id}/exact`, { method: 'POST', body: JSON.stringify({ sdr_email: sdr || null }) });
+        if (res.ok && res.dry_run) toast('Modo dry-run: payload preparado, não enviado. Veja o log do servidor.', 'info');
+        else if (res.ok) { _rememberSdr(sdr); toast(`✓ Lead criado no Exact Spotter${res.lead_id_exact ? ' · #' + res.lead_id_exact : ''}${sdr ? ' · SDR ' + sdr : ''}`, 'success'); }
+        else toast('✗ Falha no envio: ' + (res.erro || 'erro desconhecido'), 'error');
+      } catch (e) { toast('✗ Erro ao enviar: ' + e.message, 'error'); }
+      closeModal();
+      showLeadDetail(id);
+    });
+  }
+
   async function lpAction(act, id) {
     if (act === 'back') return closeLeadPage();
     if (act === 'nova-atv') return openNovaAtividade();
@@ -375,21 +406,7 @@
       catch (e) { toast('Erro: ' + e.message, 'error'); }
       return;
     }
-    if (act === 'exact') {
-      const btn = document.querySelector('.lp__actions [data-lpact="exact"]');
-      if (btn) { btn.disabled = true; btn.classList.add('is-loading'); btn.textContent = 'Enviando ao Spotter…'; }
-      toast('Enviando ao Exact Spotter…');
-      try {
-        const res = await api(`/leads/${id}/exact`, { method: 'POST' });
-        if (res.ok && res.dry_run) toast('Modo dry-run: payload preparado, não enviado. Veja o log do servidor.', 'info');
-        else if (res.ok) toast(`✓ Lead criado no Exact Spotter${res.lead_id_exact ? ' · #' + res.lead_id_exact : ''}`, 'success');
-        else toast('✗ Falha no envio ao Spotter: ' + (res.erro || 'erro desconhecido'), 'error');
-      } catch (e) {
-        toast('✗ Erro ao enviar ao Spotter: ' + e.message, 'error');
-      }
-      showLeadDetail(id);
-      return;
-    }
+    if (act === 'exact') { openExactModal(id); return; }
     if (act === 'enrich') {
       toast('Enriquecendo decisor via web…');
       try { await api(`/enrichment/lead/${id}`, { method: 'POST' }); showLeadDetail(id); }
@@ -2358,6 +2375,11 @@
   }
 
   function enterApp() {
+    // Deep-link vindo do Exact Spotter: /dashboard/?ws=<id>&lead=<id>
+    const _params = new URLSearchParams(location.search);
+    const _deepWs = _params.get('ws');
+    const _deepLead = _params.get('lead');
+    if (_deepWs) localStorage.setItem('workspaceId', _deepWs);
     applyWorkspaceTheme(localStorage.getItem('workspaceCor') || 'cpaas');
     loadWorkspaces();
     checkHealth();
@@ -2366,6 +2388,7 @@
     setInterval(checkHealth, 10000);
     setInterval(loadReminders, 60000);
     refreshAuthFooter();
+    if (_deepLead) setTimeout(() => { try { showLeadDetail(parseInt(_deepLead, 10)); } catch (e) { /* noop */ } }, 1200);
   }
   async function refreshAuthFooter() {
     try {

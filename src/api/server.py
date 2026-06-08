@@ -15,7 +15,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import Body, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -1071,12 +1071,27 @@ def leads_discover(
         raise HTTPException(500, f"Falha na descoberta: {e}")
 
 
+class ExactRequest(BaseModel):
+    sdr_email: Optional[str] = None
+
+
 @app.post("/leads/{lead_id:int}/exact")
-def leads_to_exact(lead_id: int, x_api_token: Optional[str] = Header(default=None)):
+def leads_to_exact(
+    lead_id: int,
+    req: Optional[ExactRequest] = Body(default=None),
+    x_api_token: Optional[str] = Header(default=None),
+    x_workspace_id: Optional[str] = Header(default=None),
+):
     """Envia o lead ao Exact Spotter (dry-run por padrão; loga o payload sem enviar)."""
     _auth(x_api_token)
     try:
-        return exact_push(lead_id, store=STORE)
+        ws_id = int(x_workspace_id) if x_workspace_id is not None else 1
+    except (ValueError, TypeError):
+        ws_id = 1
+    base_url = os.environ.get("APP_PUBLIC_URL", "http://127.0.0.1:8799")
+    sdr = req.sdr_email if req else None
+    try:
+        return exact_push(lead_id, store=STORE, base_url=base_url, ws_id=ws_id, sdr_email=sdr)
     except Exception as e:  # noqa: BLE001
         logger.exception("Envio ao Exact Spotter falhou (lead %s)", lead_id)
         raise HTTPException(500, f"Falha no envio ao Exact Spotter: {e}")
